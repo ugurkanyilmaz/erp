@@ -6,7 +6,8 @@ namespace KetenErp.Api.Controllers
 {
     [ApiController]
     [Route("api/records/{recordId:int}/[controller]")]
-    [Authorize(Roles = "servis,admin")]
+    // allow muhasebe role to update/view operations prices
+    [Authorize(Roles = "servis,admin,muhasebe")]
     public class ServiceOperationsController : ControllerBase
     {
         private readonly IServiceOperationRepository _repo;

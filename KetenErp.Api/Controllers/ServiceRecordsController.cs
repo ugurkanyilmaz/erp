@@ -6,7 +6,8 @@ namespace KetenErp.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "servis,admin")]
+    // allow muhasebe role to view records as well
+    [Authorize(Roles = "servis,admin,muhasebe")]
     public class ServiceRecordsController : ControllerBase
     {
         private readonly IServiceRecordRepository _repo;

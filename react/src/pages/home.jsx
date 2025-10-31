@@ -17,7 +17,7 @@ export default function ERPDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-      <Header title="ERP Sistem" subtitle="Yönetim Paneli" IconComponent={Wrench} showNew={true} showSearch={true} />
+      <Header title="Keten Pnömatik" subtitle="Yönetim Paneli" IconComponent={Wrench} showNew={true} showSearch={true} />
 
   {/* Main Content */}
   <main className="w-full px-6 py-12">

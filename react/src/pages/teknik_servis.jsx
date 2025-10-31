@@ -42,6 +42,8 @@ export default function ServisTakip() {
   const [servisKayitlari, setServisKayitlari] = useState([]);
   const [selectedRecordId, setSelectedRecordId] = useState('');
   const [notification, setNotification] = useState({ type: '', message: '' });
+  // operations loaded for muhasebe editing
+  const [accountingOperations, setAccountingOperations] = useState([]);
 
   useEffect(() => {
     fetchRecords();
@@ -468,7 +470,7 @@ export default function ServisTakip() {
             </motion.div>
           )}
 
-          {/* MUHASEBE (boş içerik) */}
+          {/* MUHASEBE */}
           {activeTab === "muhasebe" && (
             <motion.div
               key="muhasebe"
@@ -478,8 +480,139 @@ export default function ServisTakip() {
               transition={{ duration: 0.25 }}
               className="bg-white shadow-xl rounded-2xl p-6"
             >
-              <h2 className="text-lg font-semibold text-slate-800">Muhasebe</h2>
-              <p className="text-sm text-slate-500">Muhasebe sekmesi (içerik boş bırakıldı).</p>
+              <h2 className="text-lg font-semibold text-slate-800 mb-4">Muhasebe</h2>
+
+              {/* Select record to show operations/prices */}
+              <div className="mb-6">
+                <label className="label text-sm font-semibold text-slate-700 mb-2">Kayıt seç:</label>
+                <select
+                  className="select select-bordered w-full"
+                  value={selectedRecordId}
+                  onChange={async (e) => {
+                    const id = e.target.value;
+                    setSelectedRecordId(id);
+                    if (id) {
+                      try {
+                        const ops = await serviceApi.getServiceOperations(id);
+                        // attach local editable copies
+                        setAccountingOperations(ops || []);
+                        setNotification({ type: 'success', message: 'İşlemler yüklendi.' });
+                      } catch (err) {
+                        console.error(err);
+                        setNotification({ type: 'error', message: 'İşlemler yüklenirken hata.' });
+                      }
+                    } else {
+                      setAccountingOperations([]);
+                    }
+                  }}
+                >
+                  <option value="">-- Bir kayıt seçin --</option>
+                  {servisKayitlari.map((r) => (
+                    <option key={r.id} value={r.id}>{r.seriNo} — {r.firmaIsmi} — {r.urunModeli}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Operations list with editable prices */}
+              <div className="space-y-4">
+                {accountingOperations.length === 0 && (
+                  <p className="text-sm text-slate-500">Seçili kayıt için işlem bulunamadı veya henüz yüklenmedi.</p>
+                )}
+
+                {accountingOperations.map((op, opIdx) => (
+                  <div key={op.id} className="border rounded-xl p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-semibold">İşlem #{op.id}</div>
+                        <div className="text-xs text-slate-500">Yapan: {op.yapanKisi || '-'} — Tarih: {op.islemBitisTarihi || '-'}</div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={async () => {
+                            try {
+                              await serviceApi.updateServiceOperation(selectedRecordId, op.id, op);
+                              setNotification({ type: 'success', message: 'Fiyatlar kaydedildi.' });
+                            } catch (err) {
+                              console.error(err);
+                              setNotification({ type: 'error', message: 'Kaydetme hatası.' });
+                            }
+                          }}
+                          className="btn btn-sm btn-primary"
+                        >
+                          Kaydet
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Changed parts */}
+                    <div className="mt-3">
+                      <div className="text-sm font-semibold mb-2">Değişen Parçalar</div>
+                      {(!op.changedParts || op.changedParts.length === 0) && <div className="text-xs text-slate-500">Parça yok.</div>}
+                      <ul className="divide-y">
+                        {(op.changedParts || []).map((p, pIdx) => (
+                          <li key={p.id ?? pIdx} className="py-2 flex items-center justify-between">
+                            <div>
+                              <div className="font-medium">{p.partName}</div>
+                              <div className="text-xs text-slate-500">Adet: {p.quantity}</div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                step="0.01"
+                                className="input input-bordered w-32"
+                                value={p.price ?? 0}
+                                onChange={(e) => {
+                                  const v = parseFloat(e.target.value || 0) || 0;
+                                  setAccountingOperations((prev) => {
+                                    const copy = [...prev];
+                                    copy[opIdx] = { ...copy[opIdx] };
+                                    copy[opIdx].changedParts = (copy[opIdx].changedParts || []).map((cp, i) => i === pIdx ? { ...cp, price: v } : cp);
+                                    return copy;
+                                  });
+                                }}
+                              />
+                              <span className="text-sm">₺</span>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Service items */}
+                    <div className="mt-3">
+                      <div className="text-sm font-semibold mb-2">Hizmetler</div>
+                      {(!op.serviceItems || op.serviceItems.length === 0) && <div className="text-xs text-slate-500">Hizmet yok.</div>}
+                      <ul className="divide-y">
+                        {(op.serviceItems || []).map((s, sIdx) => (
+                          <li key={s.id ?? sIdx} className="py-2 flex items-center justify-between">
+                            <div>
+                              <div className="font-medium">{s.name}</div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                step="0.01"
+                                className="input input-bordered w-32"
+                                value={s.price ?? 0}
+                                onChange={(e) => {
+                                  const v = parseFloat(e.target.value || 0) || 0;
+                                  setAccountingOperations((prev) => {
+                                    const copy = [...prev];
+                                    copy[opIdx] = { ...copy[opIdx] };
+                                    copy[opIdx].serviceItems = (copy[opIdx].serviceItems || []).map((si, i) => i === sIdx ? { ...si, price: v } : si);
+                                    return copy;
+                                  });
+                                }}
+                              />
+                              <span className="text-sm">₺</span>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

@@ -9,3 +9,4 @@ C:\Users\uur\OneDrive\Masaüstü\keten_work\erp\KetenErp.Core\obj\Debug\net8.0\K
 C:\Users\uur\OneDrive\Masaüstü\keten_work\erp\KetenErp.Core\obj\Debug\net8.0\refint\KetenErp.Core.dll
 C:\Users\uur\OneDrive\Masaüstü\keten_work\erp\KetenErp.Core\obj\Debug\net8.0\KetenErp.Core.pdb
 C:\Users\uur\OneDrive\Masaüstü\keten_work\erp\KetenErp.Core\obj\Debug\net8.0\ref\KetenErp.Core.dll
+C:\Users\uur\OneDrive\Masaüstü\keten_work\erp\KetenErp.Core\obj\Debug\net8.0\KetenErp.Core.sourcelink.json

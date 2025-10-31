@@ -13,3 +13,4 @@ C:\Users\uur\OneDrive\Masaüstü\keten_work\erp\KetenErp.Infrastructure\obj\Debu
 C:\Users\uur\OneDrive\Masaüstü\keten_work\erp\KetenErp.Infrastructure\obj\Debug\net8.0\refint\KetenErp.Infrastructure.dll
 C:\Users\uur\OneDrive\Masaüstü\keten_work\erp\KetenErp.Infrastructure\obj\Debug\net8.0\KetenErp.Infrastructure.pdb
 C:\Users\uur\OneDrive\Masaüstü\keten_work\erp\KetenErp.Infrastructure\obj\Debug\net8.0\ref\KetenErp.Infrastructure.dll
+C:\Users\uur\OneDrive\Masaüstü\keten_work\erp\KetenErp.Infrastructure\obj\Debug\net8.0\KetenErp.Infrastructure.sourcelink.json

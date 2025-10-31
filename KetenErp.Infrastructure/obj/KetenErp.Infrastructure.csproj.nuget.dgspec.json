@@ -1,7 +1,7 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\uur\\OneDrive\\Masaüstü\\keten_work\\erp\\KetenErp.Infrastructure\\KetenErp.Infrastructure.csproj": {}
+    "c:\\Users\\uur\\OneDrive\\Masaüstü\\keten_work\\erp\\KetenErp.Infrastructure\\KetenErp.Infrastructure.csproj": {}
   },
   "projects": {
     "C:\\Users\\uur\\OneDrive\\Masaüstü\\keten_work\\erp\\KetenErp.Core\\KetenErp.Core.csproj": {
@@ -70,14 +70,14 @@
         }
       }
     },
-    "C:\\Users\\uur\\OneDrive\\Masaüstü\\keten_work\\erp\\KetenErp.Infrastructure\\KetenErp.Infrastructure.csproj": {
+    "c:\\Users\\uur\\OneDrive\\Masaüstü\\keten_work\\erp\\KetenErp.Infrastructure\\KetenErp.Infrastructure.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\uur\\OneDrive\\Masaüstü\\keten_work\\erp\\KetenErp.Infrastructure\\KetenErp.Infrastructure.csproj",
+        "projectUniqueName": "c:\\Users\\uur\\OneDrive\\Masaüstü\\keten_work\\erp\\KetenErp.Infrastructure\\KetenErp.Infrastructure.csproj",
         "projectName": "KetenErp.Infrastructure",
-        "projectPath": "C:\\Users\\uur\\OneDrive\\Masaüstü\\keten_work\\erp\\KetenErp.Infrastructure\\KetenErp.Infrastructure.csproj",
+        "projectPath": "c:\\Users\\uur\\OneDrive\\Masaüstü\\keten_work\\erp\\KetenErp.Infrastructure\\KetenErp.Infrastructure.csproj",
         "packagesPath": "C:\\Users\\uur\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\uur\\OneDrive\\Masaüstü\\keten_work\\erp\\KetenErp.Infrastructure\\obj\\",
+        "outputPath": "c:\\Users\\uur\\OneDrive\\Masaüstü\\keten_work\\erp\\KetenErp.Infrastructure\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

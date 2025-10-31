@@ -113,3 +113,4 @@ C:\Users\uur\OneDrive\Masaüstü\keten_work\erp\KetenErp.Api\obj\Debug\net8.0\rj
 C:\Users\uur\OneDrive\Masaüstü\keten_work\erp\KetenErp.Api\obj\Debug\net8.0\rjsmcshtml.dswa.cache.json
 C:\Users\uur\OneDrive\Masaüstü\keten_work\erp\KetenErp.Api\obj\Debug\net8.0\staticwebassets.build.json.cache
 C:\Users\uur\OneDrive\Masaüstü\keten_work\erp\KetenErp.Api\obj\Debug\net8.0\staticwebassets.build.endpoints.json
+C:\Users\uur\OneDrive\Masaüstü\keten_work\erp\KetenErp.Api\obj\Debug\net8.0\KetenErp.Api.sourcelink.json

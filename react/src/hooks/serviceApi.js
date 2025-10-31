@@ -30,4 +30,5 @@ export default {
   createServiceRecord,
   createServiceOperation,
   getServiceOperations,
+  updateServiceOperation,
 };

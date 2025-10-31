@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "74m5pyNOwyM=",
+  "dgSpecHash": "j9a+rb9Yzkw=",
   "success": true,
-  "projectFilePath": "C:\\Users\\uur\\OneDrive\\Masaüstü\\keten_work\\erp\\KetenErp.Api\\KetenErp.Api.csproj",
+  "projectFilePath": "c:\\Users\\uur\\OneDrive\\Masaüstü\\keten_work\\erp\\KetenErp.Api\\KetenErp.Api.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\uur\\.nuget\\packages\\azure.core\\1.35.0\\azure.core.1.35.0.nupkg.sha512",
     "C:\\Users\\uur\\.nuget\\packages\\azure.identity\\1.10.3\\azure.identity.1.10.3.nupkg.sha512",
