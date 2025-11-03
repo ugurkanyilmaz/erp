@@ -3,7 +3,7 @@ import React, { useEffect } from 'react'
 export default function Notification({ type = 'info', message = '', onClose }) {
   useEffect(() => {
     if (!message) return;
-    const t = setTimeout(() => onClose && onClose(), 3500);
+    const t = setTimeout(() => onClose && onClose(), 1000);
     return () => clearTimeout(t);
   }, [message, onClose]);
 

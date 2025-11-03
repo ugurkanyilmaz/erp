@@ -14,6 +14,8 @@ namespace KetenErp.Infrastructure.Repositories
 
         public async Task<ServiceRecord> AddAsync(ServiceRecord record)
         {
+            // ensure initial status persisted
+            if (string.IsNullOrWhiteSpace(record.Durum)) record.Durum = KetenErp.Core.Service.ServiceRecordStatus.KayitAcildi;
             _db.ServiceRecords.Add(record);
             await _db.SaveChangesAsync();
             return record;

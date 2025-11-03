@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom'
 export default function ERPDashboard() {
   const modules = [
     { id: 1, title: 'Stok Durumu', icon: Package, color: 'bg-blue-500', count: '1,250' },
-  { id: 2, title: 'Servis Takip', icon: Wrench, color: 'bg-violet-500', count: '42' },
+    { id: 2, title: 'Servis Takip', icon: Wrench, color: 'bg-violet-500', count: '42' },
     { id: 3, title: 'Fatura İşlemleri', icon: FileText, color: 'bg-emerald-500', count: '156' },
     { id: 4, title: 'Müşteri Yönetimi', icon: Users, color: 'bg-orange-500', count: '342' },
     { id: 5, title: 'Satış Yönetimi', icon: ShoppingCart, color: 'bg-pink-500', count: '89' },
@@ -57,6 +57,15 @@ export default function ERPDashboard() {
             if (module.title === 'Servis Takip') {
               return (
                 <Link key={module.id} to="/teknik-servis" className="block">
+                  {card}
+                </Link>
+              )
+            }
+
+            // Make the Stok Durumu card link to the Stock page
+            if (module.title === 'Stok Durumu') {
+              return (
+                <Link key={module.id} to="/stock" className="block">
                   {card}
                 </Link>
               )

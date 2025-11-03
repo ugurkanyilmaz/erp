@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "j9a+rb9Yzkw=",
+  "dgSpecHash": "qrZ4smjBSsE=",
   "success": true,
-  "projectFilePath": "c:\\Users\\uur\\OneDrive\\Masaüstü\\keten_work\\erp\\KetenErp.Api\\KetenErp.Api.csproj",
+  "projectFilePath": "C:\\Users\\uur\\OneDrive\\Masaüstü\\keten_work\\erp\\KetenErp.Api\\KetenErp.Api.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\uur\\.nuget\\packages\\azure.core\\1.35.0\\azure.core.1.35.0.nupkg.sha512",
     "C:\\Users\\uur\\.nuget\\packages\\azure.identity\\1.10.3\\azure.identity.1.10.3.nupkg.sha512",
@@ -46,6 +46,7 @@
     "C:\\Users\\uur\\.nuget\\packages\\microsoft.openapi\\1.6.14\\microsoft.openapi.1.6.14.nupkg.sha512",
     "C:\\Users\\uur\\.nuget\\packages\\microsoft.sqlserver.server\\1.0.0\\microsoft.sqlserver.server.1.0.0.nupkg.sha512",
     "C:\\Users\\uur\\.nuget\\packages\\microsoft.win32.systemevents\\6.0.0\\microsoft.win32.systemevents.6.0.0.nupkg.sha512",
+    "C:\\Users\\uur\\.nuget\\packages\\questpdf\\2025.7.3\\questpdf.2025.7.3.nupkg.sha512",
     "C:\\Users\\uur\\.nuget\\packages\\sqlitepclraw.bundle_e_sqlite3\\2.1.6\\sqlitepclraw.bundle_e_sqlite3.2.1.6.nupkg.sha512",
     "C:\\Users\\uur\\.nuget\\packages\\sqlitepclraw.core\\2.1.6\\sqlitepclraw.core.2.1.6.nupkg.sha512",
     "C:\\Users\\uur\\.nuget\\packages\\sqlitepclraw.lib.e_sqlite3\\2.1.6\\sqlitepclraw.lib.e_sqlite3.2.1.6.nupkg.sha512",

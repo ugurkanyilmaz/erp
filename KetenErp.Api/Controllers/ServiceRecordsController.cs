@@ -28,6 +28,8 @@ namespace KetenErp.Api.Controllers
         [HttpPost]
         public async Task<IActionResult> Create(ServiceRecord dto)
         {
+            // validate durum value - default to Kayıt Açıldı for new records
+            try { if (!ServiceRecordStatus.IsValid(dto.Durum)) dto.Durum = ServiceRecordStatus.KayitAcildi; } catch { dto.Durum = ServiceRecordStatus.KayitAcildi; }
             var created = await _repo.AddAsync(dto);
             return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
         }
@@ -36,6 +38,8 @@ namespace KetenErp.Api.Controllers
         public async Task<IActionResult> Update(int id, ServiceRecord dto)
         {
             if (id != dto.Id) return BadRequest();
+            // validate durum on update - default to Kayıt Açıldı if invalid
+            try { if (!ServiceRecordStatus.IsValid(dto.Durum)) dto.Durum = ServiceRecordStatus.KayitAcildi; } catch { dto.Durum = ServiceRecordStatus.KayitAcildi; }
             var updated = await _repo.UpdateAsync(dto);
             return Ok(updated);
         }

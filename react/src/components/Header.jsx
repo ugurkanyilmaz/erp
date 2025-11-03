@@ -41,7 +41,7 @@ export default function Header({ title, subtitle, IconComponent, showBack = fals
       <div className="w-full px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           {showBack && (
-            <button className="p-2 hover:bg-slate-100 rounded-lg transition" onClick={() => window.history.back()}>
+            <button className="p-2 hover:bg-slate-100 rounded-lg transition" onClick={() => nav('/')}>
               <ChevronLeft size={22} className="text-slate-700" />
             </button>
           )}

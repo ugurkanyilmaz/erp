@@ -25,10 +25,34 @@ export async function getServiceOperations(recordId) {
   return res.data;
 }
 
+export async function deleteServiceOperation(recordId, operationId) {
+  const res = await api.delete(`/api/records/${recordId}/serviceoperations/${operationId}`);
+  return res.data;
+}
+
+export async function deleteServiceRecord(recordId) {
+  const res = await api.delete(`/api/servicerecords/${recordId}`);
+  return res.data;
+}
+
+export async function updateServiceRecord(recordId, payload) {
+  const res = await api.put(`/api/servicerecords/${recordId}`, payload);
+  return res.data;
+}
+
+export async function postBulkQuotes(payload) {
+  const res = await api.post('/api/servicerecords/bulkquote', payload);
+  return res.data;
+}
+
 export default {
   getServiceRecords,
   createServiceRecord,
   createServiceOperation,
   getServiceOperations,
   updateServiceOperation,
+  deleteServiceOperation,
+  deleteServiceRecord,
+  updateServiceRecord,
+  postBulkQuotes,
 };

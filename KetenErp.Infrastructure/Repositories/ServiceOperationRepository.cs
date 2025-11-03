@@ -15,8 +15,27 @@ namespace KetenErp.Infrastructure.Repositories
 
         public async Task<ServiceOperation> AddAsync(ServiceOperation op)
         {
+            // Add operation and then mark parent record as 'İşlemde'
             _db.ServiceOperations.Add(op);
             await _db.SaveChangesAsync();
+
+            // try to update parent record status to indicate there is an ongoing operation
+            try
+            {
+                var record = await _db.ServiceRecords.FindAsync(op.ServiceRecordId);
+                if (record != null)
+                {
+                    // When an operation is added, mark the parent record as awaiting a quote
+                    record.Durum = KetenErp.Core.Service.ServiceRecordStatus.TeklifBekliyor;
+                    _db.ServiceRecords.Update(record);
+                    await _db.SaveChangesAsync();
+                }
+            }
+            catch
+            {
+                // don't throw - operation was created successfully even if status update fails
+            }
+
             return op;
         }
 
