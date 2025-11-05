@@ -4,4 +4,10 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  server: {
+    // listen on all addresses so mobile devices on the same LAN can connect
+    host: true,
+    port: 5173,
+    strictPort: false,
+  },
 })

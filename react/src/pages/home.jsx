@@ -1,5 +1,5 @@
 import React from 'react';
-import { Package, Wrench, FileText, Users, ShoppingCart, TrendingUp, Settings, BarChart3 } from 'lucide-react';
+import { Package, Wrench, FileText, Users, ShoppingCart, Archive, Settings, BarChart3, TrendingUp } from 'lucide-react';
 import Header from '../components/Header'
 import { Link } from 'react-router-dom'
 
@@ -11,7 +11,7 @@ export default function ERPDashboard() {
     { id: 4, title: 'Müşteri Yönetimi', icon: Users, color: 'bg-orange-500', count: '342' },
     { id: 5, title: 'Satış Yönetimi', icon: ShoppingCart, color: 'bg-pink-500', count: '89' },
     { id: 6, title: 'Raporlar', icon: BarChart3, color: 'bg-indigo-500', count: '24' },
-    { id: 7, title: 'Satış Analizi', icon: TrendingUp, color: 'bg-cyan-500', count: '-' },
+    { id: 7, title: 'Arşiv', icon: Archive, color: 'bg-cyan-500', count: '-' },
     { id: 8, title: 'Ayarlar', icon: Settings, color: 'bg-slate-500', count: '-' }
   ];
 
@@ -66,6 +66,15 @@ export default function ERPDashboard() {
             if (module.title === 'Stok Durumu') {
               return (
                 <Link key={module.id} to="/stock" className="block">
+                  {card}
+                </Link>
+              )
+            }
+
+            // Make the Arşiv card link to the Archive page
+            if (module.title === 'Arşiv') {
+              return (
+                <Link key={module.id} to="/archive" className="block">
                   {card}
                 </Link>
               )

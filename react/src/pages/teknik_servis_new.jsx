@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import serviceApi from '../hooks/serviceApi';
 
@@ -12,12 +12,13 @@ function getDefaultDateTimeLocal() {
 
 export default function ServisNew(props) {
   const [localYeniKayit, setLocalYeniKayit] = useState({
-    seriNo: '',
+  servisTakipNo: '',
     urunModeli: '',
     firmaIsmi: '',
     gelisTarihi: getDefaultDateTimeLocal(),
     belgeNo: '',
     alanKisi: '',
+    notlar: '',
   });
 
   const yeniKayit = props.yeniKayit ?? localYeniKayit;
@@ -40,6 +41,24 @@ export default function ServisNew(props) {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
 
+  // On mount, fetch the next BelgeNo and prefill the field if empty
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await serviceApi.getNextBelgeNo();
+        if (mounted && res && res.BelgeNo) {
+          // use functional update to avoid stale state
+          setYeniKayit(prev => ({ ...(prev || {}), belgeNo: res.BelgeNo }));
+        }
+      } catch (e) {
+        // ignore - optional
+        console.error('Could not fetch next BelgeNo', e);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
   // If parent provided createRecord prop, use it; otherwise use local implementation
   const handleCreateRecord = props.createRecord ?? (async () => {
     try {
@@ -47,7 +66,7 @@ export default function ServisNew(props) {
       setSubmitting(true);
       // map frontend keys (camelCase) to backend expected shape — backend is case-insensitive
       const payload = {
-        seriNo: yeniKayit.seriNo,
+  servisTakipNo: yeniKayit.servisTakipNo,
         urunModeli: yeniKayit.urunModeli,
         firmaIsmi: yeniKayit.firmaIsmi,
         gelisTarihi: yeniKayit.gelisTarihi,
@@ -55,6 +74,7 @@ export default function ServisNew(props) {
   durum: 'Kayıt Açıldı',
         belgeNo: yeniKayit.belgeNo,
         alanKisi: yeniKayit.alanKisi,
+        notlar: yeniKayit.notlar,
       };
       const created = await serviceApi.createServiceRecord(payload);
       // refresh parent list if available instead of navigating away
@@ -64,7 +84,7 @@ export default function ServisNew(props) {
         // ignore
       }
       // clear form for next entry
-      setYeniKayit({ seriNo: '', urunModeli: '', firmaIsmi: '', gelisTarihi: getDefaultDateTimeLocal(), belgeNo: '', alanKisi: '' });
+  setYeniKayit({ servisTakipNo: '', urunModeli: '', firmaIsmi: '', gelisTarihi: getDefaultDateTimeLocal(), belgeNo: '', alanKisi: '', notlar: '' });
       // let the parent show a notification if provided, otherwise fallback to alert
       if (outlet.setNotification) {
         outlet.setNotification({ type: 'success', message: 'Kayıt oluşturuldu.' });
@@ -92,16 +112,27 @@ export default function ServisNew(props) {
       <h2 className="text-lg font-semibold text-slate-800 mb-6">Yeni Servis Kaydı Oluştur</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {[
-          ["Seri No", "seriNo", "SN12345"],
+          ["Servis Takip No", "servisTakipNo", "SN12345"],
           ["Firma İsmi", "firmaIsmi", "ACME Ltd."],
           ["Belge No", "belgeNo", "AUTO-0001"],
-          ["Alan Kişi", "alanKisi", "Ahmet"],
         ].map(([label, key, placeholder]) => (
           <div className="form-control mb-6" key={key}>
             <label className="label text-sm font-semibold text-slate-700 mb-3">{label}:</label>
             <input type="text" className="input input-bordered rounded-xl py-3 mt-2" placeholder={placeholder} value={yeniKayit[key]} onChange={(e) => setYeniKayit({ ...yeniKayit, [key]: e.target.value })} />
           </div>
         ))}
+
+        {/* Alan Kişi - select box with fixed options */}
+        <div className="form-control mb-6">
+          <label className="label text-sm font-semibold text-slate-700 mb-3">Alan Kişi:</label>
+          <select className="select select-bordered rounded-xl py-3 mt-2" value={yeniKayit.alanKisi} onChange={(e) => setYeniKayit({ ...yeniKayit, alanKisi: e.target.value })}>
+            <option value="">-- Seçin --</option>
+            <option value="Fatmanur">Fatmanur</option>
+            <option value="Yeliz">Yeliz</option>
+            <option value="Seray">Seray</option>
+            <option value="Hatice">Hatice</option>
+          </select>
+        </div>
 
         <div className="form-control mb-6" ref={suggestionsRef}>
           <label className="label text-sm font-semibold text-slate-700 mb-3">Ürün (SKU):</label>
@@ -128,6 +159,17 @@ export default function ServisNew(props) {
           <label className="label text-sm font-semibold text-slate-700 mb-3">Geliş Tarihi:</label>
           <input type="datetime-local" className="input input-bordered rounded-xl mt-2" value={yeniKayit.gelisTarihi} onChange={(e) => setYeniKayit({ ...yeniKayit, gelisTarihi: e.target.value })} />
         </div>
+      </div>
+
+      {/* Notlar - full width textarea */}
+      <div className="form-control mb-6">
+        <label className="label text-sm font-semibold text-slate-700 mb-3">Notlar (İsteğe Bağlı):</label>
+        <textarea 
+          className="textarea textarea-bordered rounded-xl mt-2 min-h-[100px]" 
+          placeholder="Bu kayıtla ilgili özel notlar, talepler veya açıklamalar..."
+          value={yeniKayit.notlar}
+          onChange={(e) => setYeniKayit({ ...yeniKayit, notlar: e.target.value })}
+        />
       </div>
 
       <div className="flex flex-col gap-2 mt-8">

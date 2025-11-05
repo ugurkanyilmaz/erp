@@ -167,6 +167,21 @@ export default function TeknikServis() {
     }
   };
 
+  const updateRecord = async (recordId, updatedRecord) => {
+    try {
+      await serviceApi.updateServiceRecord(recordId, updatedRecord);
+      // Update local selected record
+      setSelectedRecord(updatedRecord);
+      // Refresh list
+      await reloadServisKayitlari();
+      setNotification({ type: 'success', message: 'Kayıt güncellendi.' });
+    } catch (err) {
+      console.error('Could not update record', err);
+      setNotification({ type: 'error', message: 'Kayıt güncellenirken hata oluştu.' });
+      throw err;
+    }
+  };
+
   // Notification for child pages
   const [notification, setNotification] = useState({ type: '', message: '' });
 
@@ -238,7 +253,7 @@ export default function TeknikServis() {
         </AnimatePresence>
         <Notification type={notification.type || 'info'} message={notification.message || ''} onClose={clearNotification} />
 
-  <ServiceDetailModal open={detailOpen} onClose={closeDetail} record={selectedRecord} operations={operations} loading={opsLoading} onDeleteOperation={deleteOperation} onUpdateOperation={updateOperationLocal} canEdit={roles.includes('admin') || roles.includes('muhasebe')} onDeleteRecord={deleteRecord} canDelete={roles.includes('admin')} showPrices={!!detailOptions.showPrices} />
+  <ServiceDetailModal open={detailOpen} onClose={closeDetail} record={selectedRecord} operations={operations} loading={opsLoading} onDeleteOperation={deleteOperation} onUpdateOperation={updateOperationLocal} canEdit={roles.includes('admin') || roles.includes('muhasebe')} onDeleteRecord={deleteRecord} canDelete={roles.includes('admin')} showPrices={!!detailOptions.showPrices} onUpdateRecord={updateRecord} />
       </main>
     </div>
   );

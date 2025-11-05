@@ -17,4 +17,11 @@
     <ProjectReference Include="..\KetenErp.Infrastructure\KetenErp.Infrastructure.csproj" />
   </ItemGroup>
 
+  <!-- Ensure image assets under Services are copied to the build output so QuestPDF can load them by path -->
+  <ItemGroup>
+    <None Include="Services\**\*.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

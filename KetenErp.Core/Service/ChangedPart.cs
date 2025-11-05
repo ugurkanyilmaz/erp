@@ -10,5 +10,8 @@ namespace KetenErp.Core.Service
         public int Quantity { get; set; } = 1;
         // fiyatı muhasebe ekranında belirleyebilmek için eklendi
         public decimal Price { get; set; } = 0m;
+        // Yeni alanlar (nullable): liste fiyatı ve indirim yüzdesi
+        public decimal? ListPrice { get; set; }
+        public decimal? DiscountPercent { get; set; }
     }
 }

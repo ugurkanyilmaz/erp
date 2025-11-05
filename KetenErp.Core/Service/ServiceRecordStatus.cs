@@ -3,13 +3,14 @@ namespace KetenErp.Core.Service
     public static class ServiceRecordStatus
     {
         public const string KayitAcildi = "Kayıt Açıldı";
-        public const string OnayBekliyor = "Onay Bekliyor";
-        public const string TeklifBekliyor = "Teklif Bekliyor";
-        public const string TeklifGonderildi = "Teklif Gönderildi";
+        public const string Onaylandi = "Onaylandı";
+    public const string TeklifBekliyor = "Teklif Bekliyor";
+    public const string OnayBekliyor = "Onay Bekliyor";
         public const string Islemede = "İşlemde";
         public const string Tamamlandi = "Tamamlandı";
 
-        public static string[] All => new[] { KayitAcildi, OnayBekliyor, TeklifBekliyor, TeklifGonderildi, Islemede, Tamamlandi };
+    // Keep the statuses that are actively used. 'Teklif Gönderildi' is not used — after teklif gönderme we mark records as 'Onay Bekliyor'.
+    public static string[] All => new[] { KayitAcildi, Onaylandi, TeklifBekliyor, OnayBekliyor, Islemede, Tamamlandi };
 
         public static bool IsValid(string? s)
         {

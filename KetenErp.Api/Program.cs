@@ -4,6 +4,7 @@ using KetenErp.Infrastructure.Repositories;
 using KetenErp.Core.Repositories;
 using KetenErp.Api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.FileProviders;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -23,16 +24,31 @@ builder.Services.AddCors(options =>
     options.AddPolicy(name: "AllowFrontend",
         policy =>
         {
-            policy.WithOrigins("http://localhost:5173")
-                  .AllowAnyHeader()
-                  .AllowAnyMethod()
-                  .AllowCredentials();
+            // In development allow requests from the LAN (useful for mobile testing)
+            if (builder.Environment.IsDevelopment())
+            {
+                policy.AllowAnyOrigin()
+                      .AllowAnyHeader()
+                      .AllowAnyMethod();
+            }
+            else
+            {
+                // Production: restrict to known dev origin
+                policy.WithOrigins("http://localhost:5173")
+                      .AllowAnyHeader()
+                      .AllowAnyMethod()
+                      .AllowCredentials();
+            }
         });
 });
 
 // Configure EF Core to use SQLite (file-based DB)
-var defaultDbPath = Path.Combine(AppContext.BaseDirectory, "..", "ketenerp.db");
-var sqliteDefault = $"Data Source={Path.GetFullPath(defaultDbPath)}";
+// Place the DB file inside the runtime output folder (AppContext.BaseDirectory) so the app
+// always uses the DB from the `bin/...` folder during execution.
+var dbFilePath = Path.Combine(AppContext.BaseDirectory, "ketenerp.db");
+var sqliteDefault = $"Data Source={Path.GetFullPath(dbFilePath)}";
+// Log the DB file path at startup to help debugging where the file is created
+Console.WriteLine($"Using SQLite DB at runtime path: {Path.GetFullPath(dbFilePath)}");
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? sqliteDefault;
 builder.Services.AddDbContext<KetenErpDbContext>(options => options.UseSqlite(connectionString));
 
@@ -127,6 +143,26 @@ app.Use(async (context, next) =>
 app.UseAuthentication();
 app.UseAuthorization();
 
+// Serve static files (uploads etc.) from project-level wwwroot (if exists)
+app.UseStaticFiles();
+// Additionally serve static files from the runtime output wwwroot (AppContext.BaseDirectory/wwwroot)
+try
+{
+    var runtimeWww = Path.Combine(AppContext.BaseDirectory, "wwwroot");
+    if (Directory.Exists(runtimeWww))
+    {
+        app.UseStaticFiles(new StaticFileOptions
+        {
+            FileProvider = new PhysicalFileProvider(runtimeWww),
+            RequestPath = ""
+        });
+    }
+}
+catch (Exception ex)
+{
+    Console.WriteLine("Could not configure runtime static file provider: " + ex.Message);
+}
+
 app.MapControllers();
 
 // Seed roles and example users
@@ -168,6 +204,38 @@ using (var scope = app.Services.CreateScope())
         Console.WriteLine("Recreating database because required Identity tables were missing.");
         db.Database.EnsureDeleted();
         db.Database.EnsureCreated();
+    }
+
+    // Additional safety: verify that all expected tables for current model exist.
+    // If any expected table is missing (e.g. ServiceOperations, ChangedParts, ServiceItems, Products, ServiceRecords,
+    // or Identity tables), recreate database so EF model is fully represented.
+    try
+    {
+        using var connCheck = db.Database.GetDbConnection();
+        connCheck.Open();
+    var expectedTables = new[] { "AspNetUsers", "AspNetRoles", "Products", "SpareParts", "ServiceRecords", "ServiceOperations", "ChangedParts", "ServiceItems", "ServiceRecordPhotos", "SentQuotes" };
+        var missing = new List<string>();
+        foreach (var tname in expectedTables)
+        {
+            using var cmd = connCheck.CreateCommand();
+            cmd.CommandText = $"SELECT name FROM sqlite_master WHERE type='table' AND name='{tname}';";
+            var r = cmd.ExecuteScalar();
+            if (r == null)
+            {
+                missing.Add(tname);
+            }
+        }
+
+        if (missing.Count > 0)
+        {
+            Console.WriteLine($"Detected missing tables: {string.Join(',', missing)}; recreating database to ensure schema matches EF model.");
+            db.Database.EnsureDeleted();
+            db.Database.EnsureCreated();
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Could not perform schema completeness check: {ex.Message}");
     }
 
     // Ensure Products table has MinStock column (added later) - SQLite supports ALTER TABLE ADD COLUMN.
@@ -285,6 +353,38 @@ using (var scope = app.Services.CreateScope())
     catch (Exception ex)
     {
         Console.WriteLine($"Could not ensure Durum column exists: {ex.Message}");
+    }
+
+    // Ensure ServiceRecords table has Notlar column (notes) - add column if missing
+    try
+    {
+        using var conn3 = db.Database.GetDbConnection();
+        conn3.Open();
+        using var cmdNot = conn3.CreateCommand();
+        cmdNot.CommandText = "PRAGMA table_info('ServiceRecords');";
+        using var rdrNot = cmdNot.ExecuteReader();
+        var foundNot = false;
+        while (rdrNot.Read())
+        {
+            var name = rdrNot[1]?.ToString();
+            if (string.Equals(name, "Notlar", StringComparison.OrdinalIgnoreCase))
+            {
+                foundNot = true;
+                break;
+            }
+        }
+        rdrNot.Close();
+        if (!foundNot)
+        {
+            using var alterNot = conn3.CreateCommand();
+            alterNot.CommandText = "ALTER TABLE ServiceRecords ADD COLUMN Notlar TEXT;";
+            alterNot.ExecuteNonQuery();
+            Console.WriteLine("Added Notlar column to ServiceRecords table.");
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Could not ensure Notlar column exists: {ex.Message}");
     }
 
     string[] roles = new[] { "admin", "servis", "muhasebe", "user" };

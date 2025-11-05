@@ -2,6 +2,7 @@ using KetenErp.Api.Services;
 using KetenErp.Core.Service;
 using KetenErp.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -14,13 +15,19 @@ namespace KetenErp.Api.Controllers
     [Route("api/[controller]")]
     public class BulkQuoteController : ControllerBase
     {
-        private readonly IServiceRecordRepository _recordRepo;
-        private readonly IServiceOperationRepository _opRepo;
+    private readonly IServiceRecordRepository _recordRepo;
+    private readonly IServiceOperationRepository _opRepo;
+    private readonly KetenErp.Core.Repositories.IProductRepository _productRepo;
+    private readonly KetenErp.Core.Repositories.ISparePartRepository _spareRepo;
+    private readonly KetenErp.Infrastructure.Data.KetenErpDbContext _db;
 
-        public BulkQuoteController(IServiceRecordRepository recordRepo, IServiceOperationRepository opRepo)
+        public BulkQuoteController(IServiceRecordRepository recordRepo, IServiceOperationRepository opRepo, KetenErp.Core.Repositories.IProductRepository productRepo, KetenErp.Core.Repositories.ISparePartRepository spareRepo, KetenErp.Infrastructure.Data.KetenErpDbContext db)
         {
             _recordRepo = recordRepo;
             _opRepo = opRepo;
+            _productRepo = productRepo;
+            _spareRepo = spareRepo;
+            _db = db;
         }
 
         public class BulkQuoteItemDto
@@ -50,6 +57,11 @@ namespace KetenErp.Api.Controllers
             // Toplu teklif: Tüm ürünleri tek bir PDF'te topla
             var tumUrunler = new List<UrunIslem>();
             string musteriAdi = "Müşteri"; // İlk kaydın müşteri adını kullanacağız
+            string? belgeNoForPdf = null;
+
+            // preload product and spare part lists for metadata lookups
+            var allProducts = (await _productRepo.GetAllAsync()).ToList();
+            var allSpareParts = (await _spareRepo.GetAllAsync()).ToList();
 
             foreach (var it in req.Items)
             {
@@ -61,16 +73,22 @@ namespace KetenErp.Api.Controllers
                 if (tumUrunler.Count == 0 && !string.IsNullOrEmpty(rec?.FirmaIsmi))
                 {
                     musteriAdi = rec.FirmaIsmi;
+                    // also capture BelgeNo from the first record if available
+                    if (!string.IsNullOrWhiteSpace(rec?.BelgeNo)) belgeNoForPdf = rec.BelgeNo;
                 }
 
                 var urun = new UrunIslem
                 {
-                    UrunAdi = string.IsNullOrEmpty(rec?.UrunModeli) ? rec?.SeriNo ?? $"#{rec?.Id}" : rec.UrunModeli,
-                    SeriNo = rec?.SeriNo,
-                    Fiyat = it.PartsPrice + it.ServicesPrice,
+                    UrunAdi = string.IsNullOrEmpty(rec?.UrunModeli) ? rec?.ServisTakipNo ?? $"#{rec?.Id}" : rec.UrunModeli,
+                    ServisTakipNo = rec?.ServisTakipNo,
+                    // Fiyat will be computed from operations (considering list price & discount) below
+                    Fiyat = 0m,
                     Islemler = new List<string>(),
-                    Not = it.Note
+                    // Use record notes if available, otherwise fallback to item note
+                    Not = !string.IsNullOrWhiteSpace(rec?.Notlar) ? rec.Notlar : it.Note
                 };
+
+                decimal urunTotal = 0m;
 
                 foreach (var op in ops)
                 {
@@ -78,19 +96,121 @@ namespace KetenErp.Api.Controllers
                     {
                         foreach (var p in op.ChangedParts)
                         {
-                            urun.Islemler.Add($"Parça: {p.PartName} x{p.Quantity} : {p.Price:C}");
+                            // Eğer liste fiyatı ve indirim varsa, indirimli fiyatı hesapla
+                            try
+                            {
+                                decimal list = 0m;
+                                decimal disc = 0m;
+                                decimal discounted = 0m;
+                                // Use nullable ListPrice/DiscountPercent if provided; otherwise fall back to Price and 0
+                                list = p.ListPrice.HasValue && p.ListPrice.Value > 0m ? p.ListPrice.Value : p.Price;
+                                disc = p.DiscountPercent ?? 0m;
+                                discounted = list * (1 - (disc / 100m));
+                                    if (list > 0m)
+                                    {
+                                        urun.Islemler.Add($"Parça: {p.PartName} x{p.Quantity} : {discounted:C} (Liste: {list:C}, İndirim: {disc}%)");
+                                        urunTotal += discounted * p.Quantity;
+                                    }
+                                    else
+                                    {
+                                        urun.Islemler.Add($"Parça: {p.PartName} x{p.Quantity} : {p.Price:C}");
+                                        urunTotal += p.Price * p.Quantity;
+                                    }
+                            }
+                            catch
+                            {
+                                urun.Islemler.Add($"Parça: {p.PartName} x{p.Quantity} : {p.Price:C}");
+                            }
                         }
                     }
                     if (op.ServiceItems != null)
                     {
                         foreach (var s in op.ServiceItems)
                         {
-                            urun.Islemler.Add($"Hizmet: {s.Name} : {s.Price:C}");
+                            try
+                            {
+                                decimal list = 0m;
+                                decimal disc = 0m;
+                                decimal discounted = 0m;
+                                list = s.ListPrice.HasValue && s.ListPrice.Value > 0m ? s.ListPrice.Value : s.Price;
+                                disc = s.DiscountPercent ?? 0m;
+                                discounted = list * (1 - (disc / 100m));
+                                if (list > 0m)
+                                {
+                                    urun.Islemler.Add($"Hizmet: {s.Name} : {discounted:C} (Liste: {list:C}, İndirim: {disc}%)");
+                                    urunTotal += discounted;
+                                }
+                                else
+                                {
+                                    urun.Islemler.Add($"Hizmet: {s.Name} : {s.Price:C}");
+                                    urunTotal += s.Price;
+                                }
+                            }
+                            catch
+                            {
+                                urun.Islemler.Add($"Hizmet: {s.Name} : {s.Price:C}");
+                            }
                         }
                     }
                 }
 
+                // Attach photos for this service record (if any) - belge no'ya göre bul
+                try
+                {
+                    // Önce belge no'ya göre ara, yoksa ServiceRecordId'ye göre ara
+                    var photos = await _db.ServiceRecordPhotos
+                        .Where(p => p.ServiceRecordId == it.Id || (!string.IsNullOrWhiteSpace(rec!.BelgeNo) && p.BelgeNo == rec.BelgeNo))
+                        .OrderByDescending(p => p.CreatedAt)
+                        .ToListAsync();
+                    
+                    foreach (var ph in photos)
+                    {
+                        try
+                        {
+                            // FilePath zaten relative path olarak kaydedildi (wwwroot/uploads/BELGENO/filename)
+                            // Resolve physical path: stored FilePath may be 'wwwroot/uploads/...' or 'uploads/...'
+                            var candidate = ph.FilePath ?? string.Empty;
+                            string? abs = null;
+                            try
+                            {
+                                if (candidate.StartsWith("wwwroot/", StringComparison.OrdinalIgnoreCase) || candidate.StartsWith("wwwroot\\", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    abs = Path.Combine(AppContext.BaseDirectory, candidate);
+                                }
+                                else if (candidate.StartsWith("uploads/", StringComparison.OrdinalIgnoreCase) || candidate.StartsWith("uploads\\", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    abs = Path.Combine(AppContext.BaseDirectory, "wwwroot", candidate);
+                                }
+                                else
+                                {
+                                    // try both forms
+                                    var a1 = Path.Combine(AppContext.BaseDirectory, candidate);
+                                    var a2 = Path.Combine(AppContext.BaseDirectory, "wwwroot", candidate);
+                                    abs = System.IO.File.Exists(a1) ? a1 : (System.IO.File.Exists(a2) ? a2 : a1);
+                                }
+
+                                if (!string.IsNullOrEmpty(abs) && System.IO.File.Exists(abs))
+                                {
+                                    urun.PhotoPaths.Add(abs);
+                                }
+                            }
+                            catch { /* ignore individual photo path issues */ }
+                        }
+                        catch { /* ignore individual photo path issues */ }
+                    }
+                }
+                catch { /* ignore photo lookup errors */ }
+
                 tumUrunler.Add(urun);
+                // Set computed price if we accumulated any operation totals, otherwise keep provided parts+services totals
+                if (urunTotal > 0m)
+                {
+                    urun.Fiyat = urunTotal;
+                }
+                else
+                {
+                    urun.Fiyat = it.PartsPrice + it.ServicesPrice;
+                }
             }
 
             // Tek bir PDF oluştur - tüm ürünlerle
@@ -98,9 +218,29 @@ namespace KetenErp.Api.Controllers
             var filePath = Path.Combine(exportsDir, fileName);
             var logoPath = Path.Combine(AppContext.BaseDirectory, "Services", "weblogo.jpg");
             
-            byte[] pdf = TeklifPdfOlusturucu.Olustur(musteriAdi, tumUrunler, logoPath);
+            byte[] pdf = TeklifPdfOlusturucu.Olustur(musteriAdi, tumUrunler, logoPath, null, belgeNoForPdf);
             await System.IO.File.WriteAllBytesAsync(filePath, pdf);
             exported.Add(filePath);
+
+            // Gönderilen teklifi veritabanına kaydet
+            try
+            {
+                var sentQuote = new KetenErp.Core.Service.SentQuote
+                {
+                    RecipientEmail = req.RecipientEmail ?? "N/A",
+                    BelgeNo = belgeNoForPdf ?? "N/A",
+                    PdfFileName = fileName,
+                    SentAt = DateTime.UtcNow,
+                    ServiceRecordIds = string.Join(",", req.Items.Select(i => i.Id)),
+                    CustomerName = musteriAdi
+                };
+                _db.SentQuotes.Add(sentQuote);
+                await _db.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Could not save sent quote record: {ex.Message}");
+            }
 
             // Güncelle: Başarılı teklif gönderiminden sonra her kayıt için durumunu 'Onay Bekliyor' yap
             foreach (var it in req.Items)
@@ -121,6 +261,24 @@ namespace KetenErp.Api.Controllers
             }
 
             return Ok(new { files = exported });
+        }
+
+        // List sent quotes (for archive view)
+        [HttpGet("/api/sentquotes")]
+        public async Task<IActionResult> GetSentQuotes()
+        {
+            try
+            {
+                var quotes = await _db.SentQuotes
+                    .OrderByDescending(q => q.SentAt)
+                    .Take(100) // son 100 teklif
+                    .ToListAsync();
+                return Ok(quotes);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = ex.Message });
+            }
         }
 
         // List exported files
@@ -145,7 +303,10 @@ namespace KetenErp.Api.Controllers
             if (!System.IO.File.Exists(filePath)) return NotFound();
             var contentType = fileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) ? "application/pdf" : "text/plain";
             var stream = System.IO.File.OpenRead(filePath);
-            return File(stream, contentType, fileName);
+            // Explicitly set Content-Disposition to inline so browsers open PDF in-tab instead of forcing download.
+            // Some browsers/extensions may still choose to download; if so check browser PDF settings.
+            Response.Headers["Content-Disposition"] = $"inline; filename=\"{fileName}\"";
+            return File(stream, contentType);
         }
     }
 }

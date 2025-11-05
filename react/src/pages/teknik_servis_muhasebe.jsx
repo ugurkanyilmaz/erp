@@ -26,6 +26,7 @@ export default function Muhasebe(props) {
   const canEdit = roles.includes('admin') || roles.includes('muhasebe');
 
   const servisKayitlari = props.servisKayitlari ?? outlet.servisKayitlari ?? [];
+  const reloadServisKayitlari = props.reloadServisKayitlari ?? outlet.reloadServisKayitlari ?? (async () => {});
   const openDetail = props.openDetail ?? outlet.openDetail ?? (async () => {});
   const selectedRecordId = props.selectedRecordId ?? localSelectedRecordId;
   const setSelectedRecordId = props.setSelectedRecordId ?? setLocalSelectedRecordId;
@@ -153,6 +154,23 @@ export default function Muhasebe(props) {
     }
   };
 
+  // onayla (Muhasebe tarafındaki buton): seçili kayıt için durumu 'Onaylandı' yap
+  const handleApproveRecord = async () => {
+    if (!selectedRecordId) return;
+    const rec = servisKayitlari.find(s => String(s.id) === String(selectedRecordId));
+    if (!rec) return;
+    try {
+      const payload = { ...rec, id: Number(rec.id), Id: Number(rec.id), durum: 'Onaylandı', Durum: 'Onaylandı' };
+      await serviceApi.updateServiceRecord(rec.id, payload);
+      setNotification({ type: 'success', message: 'Kayıt Onaylandı olarak güncellendi.' });
+      try { await reloadServisKayitlari(); } catch (e) { console.error('reload failed', e); }
+      try { const ops = await serviceApi.getServiceOperations(selectedRecordId); setAccountingOperations(ops || []); } catch (e) { console.error('ops reload failed', e); }
+    } catch (err) {
+      console.error('Could not approve record', err);
+      setNotification({ type: 'error', message: 'Onaylama sırasında hata oluştu.' });
+    }
+  };
+
   return (
     <div className="bg-white shadow-xl rounded-2xl p-6">
       <h2 className="text-lg font-semibold text-slate-800 mb-4">Muhasebe</h2>
@@ -180,7 +198,7 @@ export default function Muhasebe(props) {
                     <label key={r.id} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded">
                       <input type="checkbox" checked={bulkSelectedIds.includes(r.id)} onChange={() => toggleBulkSelect(r.id)} />
                       <div className="flex-1">
-                        <div className="font-medium">{r.seriNo} — {r.firmaIsmi}</div>
+                        <div className="font-medium">{r.servisTakipNo || r.seriNo} — {r.firmaIsmi}</div>
                         <div className="text-xs text-slate-500">{r.urunModeli} • {r.gelisTarihi}</div>
                       </div>
                       <div className="text-sm text-slate-600">{r.durum}</div>
@@ -205,7 +223,7 @@ export default function Muhasebe(props) {
                     return (
                       <div key={id} className="border rounded p-3">
                         <div className="flex items-center justify-between mb-2">
-                          <div className="font-semibold">{rec.seriNo} — {rec.firmaIsmi}</div>
+                          <div className="font-semibold">{rec.servisTakipNo || rec.seriNo} — {rec.firmaIsmi}</div>
                           <div className="text-xs text-slate-500">{rec.urunModeli}</div>
                         </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -298,7 +316,7 @@ export default function Muhasebe(props) {
           <table className="table w-full">
             <thead>
               <tr className="text-slate-500 text-sm">
-                <th>Seri No</th>
+                <th>Servis Takip No</th>
                 <th>Ürün Modeli</th>
                 <th>Firma</th>
                 <th>GelişTarihi</th>
@@ -311,11 +329,11 @@ export default function Muhasebe(props) {
                 const statusClass = kayit.durum === 'Tamamlandı' ? 'bg-emerald-100 text-emerald-700'
                   : kayit.durum === 'İşlemde' ? 'bg-amber-100 text-amber-700'
                   : kayit.durum === 'Teklif Bekliyor' ? 'bg-yellow-100 text-yellow-700'
-                  : kayit.durum === 'Teklif Gönderildi' ? 'bg-indigo-100 text-indigo-700'
+                  : kayit.durum === 'Onay Bekliyor' ? 'bg-indigo-100 text-indigo-700'
                   : 'bg-sky-100 text-sky-700';
                 return (
                   <tr key={kayit.id} className="hover:bg-slate-50 transition">
-                    <td className="font-medium">{kayit.seriNo}</td>
+                    <td className="font-medium">{kayit.servisTakipNo || kayit.seriNo}</td>
                     <td>{kayit.urunModeli}</td>
                     <td>{kayit.firmaIsmi}</td>
                     <td>{kayit.gelisTarihi}</td>
@@ -327,7 +345,28 @@ export default function Muhasebe(props) {
                     <td className="flex items-center gap-2">
                       <button onClick={async()=>{ await openDetail(kayit, { showPrices: true }); }} className="px-3 py-1.5 rounded-lg text-sm font-medium bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition">Detay</button>
                       {canEdit && (
-                        <button onClick={async() => { await handleSendQuote(kayit.id); }} className="px-3 py-1.5 rounded-lg text-sm font-medium bg-yellow-50 text-yellow-700 hover:bg-yellow-100 transition">Teklif Gönder</button>
+                        <>
+                          <button onClick={async() => { await handleSendQuote(kayit.id); }} className="px-3 py-1.5 rounded-lg text-sm font-medium bg-yellow-50 text-yellow-700 hover:bg-yellow-100 transition">Teklif Gönder</button>
+                          <button
+                            disabled={!(kayit.durum === 'Onay Bekliyor')}
+                            onClick={async () => {
+                              if (kayit.durum !== 'Onay Bekliyor') return; // guard
+                              try {
+                                const payload = { ...kayit, id: Number(kayit.id), Id: Number(kayit.id), durum: 'Onaylandı', Durum: 'Onaylandı' };
+                                await serviceApi.updateServiceRecord(kayit.id, payload);
+                                setNotification({ type: 'success', message: 'Kayıt Onaylandı olarak güncellendi.' });
+                                try { await reloadServisKayitlari(); } catch (e) { console.error('reload failed', e); }
+                                // if this row is currently selected, refresh operations view
+                                try { if (String(selectedRecordId) === String(kayit.id)) { const ops = await serviceApi.getServiceOperations(kayit.id); setAccountingOperations(ops || []); } } catch (e) { console.error('ops reload failed', e); }
+                              } catch (err) {
+                                console.error('Could not approve record', err);
+                                setNotification({ type: 'error', message: 'Onaylama sırasında hata oluştu.' });
+                              }
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${kayit.durum === 'Onay Bekliyor' ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'bg-emerald-100 text-emerald-400 cursor-not-allowed'}`}>
+                            Onayla
+                          </button>
+                        </>
                       )}
                     </td>
                   </tr>
@@ -337,28 +376,7 @@ export default function Muhasebe(props) {
           </table>
         </div>
       </div>
-      <div className="mb-6">
-        <label className="label text-sm font-semibold text-slate-700 mb-2">Kayıt seç:</label>
-        <select className="select select-bordered w-full" value={selectedRecordId} onChange={async (e) => {
-          const id = e.target.value;
-          setSelectedRecordId(id);
-          if (!id) {
-            setAccountingOperations([]);
-            return;
-          }
-          try {
-            const ops = await serviceApi.getServiceOperations(id);
-            setAccountingOperations(ops || []);
-          } catch (err) {
-            console.error('Could not load operations', err);
-            setNotification({ type: 'error', message: 'İşlemler yüklenemedi' });
-            setAccountingOperations([]);
-          }
-        }}>
-          <option value="">-- Bir kayıt seçin --</option>
-          {servisKayitlari.map((r) => (<option key={r.id} value={r.id}>{r.seriNo} — {r.firmaIsmi} — {r.urunModeli}</option>))}
-        </select>
-      </div>
+      {/* Kayıt seç bölümü kaldırıldı - seçim artık burada gösterilmiyor */}
 
       <div className="space-y-4">
         {accountingOperations.length === 0 && (<p className="text-sm text-slate-500">Seçili kayıt için işlem bulunamadı veya henüz yüklenmedi.</p>)}
@@ -377,17 +395,21 @@ export default function Muhasebe(props) {
               <div><div className="font-semibold">İşlem #{op.id}</div><div className="text-xs text-slate-500">Yapan: {op.yapanKisi || '-'} — Tarih: {op.islemBitisTarihi || '-'}</div></div>
               <div className="flex gap-2">
                 {canEdit ? (
-                  <button onClick={async () => {
-                    try {
-                      // ensure ServiceRecordId and Id present
-                      const payload = { ...op, serviceRecordId: Number(selectedRecordId), ServiceRecordId: Number(selectedRecordId), Id: op.id, id: op.id };
-                      await serviceApi.updateServiceOperation(selectedRecordId, op.id, payload);
-                      setNotification({ type: 'success', message: 'Fiyatlar kaydedildi.' });
-                    } catch (err) {
-                      console.error(err);
-                      setNotification({ type: 'error', message: 'Kaydetme hatası.' });
-                    }
-                  }} className="btn btn-sm btn-primary">Kaydet</button>
+                  <>
+                    <button onClick={async () => {
+                      try {
+                        // ensure ServiceRecordId and Id present
+                        const payload = { ...op, serviceRecordId: Number(selectedRecordId), ServiceRecordId: Number(selectedRecordId), Id: op.id, id: op.id };
+                        await serviceApi.updateServiceOperation(selectedRecordId, op.id, payload);
+                        setNotification({ type: 'success', message: 'Fiyatlar kaydedildi.' });
+                      } catch (err) {
+                        console.error(err);
+                        setNotification({ type: 'error', message: 'Kaydetme hatası.' });
+                      }
+                    }} className="btn btn-sm btn-primary">Kaydet</button>
+
+                    <button onClick={async () => { await handleApproveRecord(); }} className="btn btn-sm btn-warning">Onayla</button>
+                  </>
                 ) : null}
               </div>
             </div>
@@ -400,10 +422,31 @@ export default function Muhasebe(props) {
                   <li key={p.id ?? pIdx} className="py-2 flex items-center justify-between">
                     <div><div className="font-medium">{p.partName}</div><div className="text-xs text-slate-500">Adet: {p.quantity}</div></div>
                     <div className="flex items-center gap-2">
-                      <input type="number" step="0.01" className="input input-bordered w-32" value={p.price ?? 0} onChange={(e) => {
-                        const v = parseFloat(e.target.value) || 0;
-                        setAccountingOperations((prev) => prev.map((oo) => oo.id === op.id ? ({ ...oo, changedParts: (oo.changedParts || []).map((pp, i) => i === pIdx ? ({ ...pp, price: v }) : pp) }) : oo));
-                      }} disabled={!canEdit} />
+                      <input
+                        type="number"
+                        step="0.01"
+                        className="input input-bordered w-32"
+                        value={p.price !== undefined && p.price !== null ? p.price : ''}
+                        onFocus={() => {
+                          // If the value is zero, clear it so typing replaces it immediately
+                          if (p.price === 0) {
+                            setAccountingOperations((prev) => prev.map((oo) => oo.id === op.id ? ({ ...oo, changedParts: (oo.changedParts || []).map((pp, i) => i === pIdx ? ({ ...pp, price: '' }) : pp) }) : oo));
+                          }
+                        }}
+                        onBlur={() => {
+                          // If left empty, normalize back to 0 for display/consistency
+                          const current = (accountingOperations.find(a => a.id === op.id)?.changedParts || [])[pIdx];
+                          if (current && (current.price === '' || current.price === null || current.price === undefined)) {
+                            setAccountingOperations((prev) => prev.map((oo) => oo.id === op.id ? ({ ...oo, changedParts: (oo.changedParts || []).map((pp, i) => i === pIdx ? ({ ...pp, price: 0 }) : pp) }) : oo));
+                          }
+                        }}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          const v = raw === '' ? '' : (isNaN(Number(raw)) ? '' : parseFloat(raw));
+                          setAccountingOperations((prev) => prev.map((oo) => oo.id === op.id ? ({ ...oo, changedParts: (oo.changedParts || []).map((pp, i) => i === pIdx ? ({ ...pp, price: v }) : pp) }) : oo));
+                        }}
+                        disabled={!canEdit}
+                      />
                       <span className="text-sm">₺</span>
                     </div>
                   </li>
@@ -419,10 +462,29 @@ export default function Muhasebe(props) {
                   <li key={s.id ?? sIdx} className="py-2 flex items-center justify-between">
                     <div><div className="font-medium">{s.name}</div></div>
                     <div className="flex items-center gap-2">
-                      <input type="number" step="0.01" className="input input-bordered w-32" value={s.price ?? 0} onChange={(e) => {
-                        const v = parseFloat(e.target.value) || 0;
-                        setAccountingOperations((prev) => prev.map((oo) => oo.id === op.id ? ({ ...oo, serviceItems: (oo.serviceItems || []).map((ss, i) => i === sIdx ? ({ ...ss, price: v }) : ss) }) : oo));
-                      }} disabled={!canEdit} />
+                      <input
+                        type="number"
+                        step="0.01"
+                        className="input input-bordered w-32"
+                        value={s.price !== undefined && s.price !== null ? s.price : ''}
+                        onFocus={() => {
+                          if (s.price === 0) {
+                            setAccountingOperations((prev) => prev.map((oo) => oo.id === op.id ? ({ ...oo, serviceItems: (oo.serviceItems || []).map((ss, i) => i === sIdx ? ({ ...ss, price: '' }) : ss) }) : oo));
+                          }
+                        }}
+                        onBlur={() => {
+                          const current = (accountingOperations.find(a => a.id === op.id)?.serviceItems || [])[sIdx];
+                          if (current && (current.price === '' || current.price === null || current.price === undefined)) {
+                            setAccountingOperations((prev) => prev.map((oo) => oo.id === op.id ? ({ ...oo, serviceItems: (oo.serviceItems || []).map((ss, i) => i === sIdx ? ({ ...ss, price: 0 }) : ss) }) : oo));
+                          }
+                        }}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          const v = raw === '' ? '' : (isNaN(Number(raw)) ? '' : parseFloat(raw));
+                          setAccountingOperations((prev) => prev.map((oo) => oo.id === op.id ? ({ ...oo, serviceItems: (oo.serviceItems || []).map((ss, i) => i === sIdx ? ({ ...ss, price: v }) : ss) }) : oo));
+                        }}
+                        disabled={!canEdit}
+                      />
                       <span className="text-sm">₺</span>
                     </div>
                   </li>

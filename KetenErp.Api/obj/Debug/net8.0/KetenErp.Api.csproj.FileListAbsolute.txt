@@ -156,3 +156,7 @@ C:\Users\uur\OneDrive\Masaüstü\keten_work\erp\KetenErp.Api\bin\Debug\net8.0\ru
 C:\Users\uur\OneDrive\Masaüstü\keten_work\erp\KetenErp.Api\bin\Debug\net8.0\runtimes\win-x86\native\libwinpthread-1.dll
 C:\Users\uur\OneDrive\Masaüstü\keten_work\erp\KetenErp.Api\bin\Debug\net8.0\runtimes\win-x86\native\qpdf.dll
 C:\Users\uur\OneDrive\Masaüstü\keten_work\erp\KetenErp.Api\bin\Debug\net8.0\runtimes\win-x86\native\zlib1.dll
+C:\Users\uur\OneDrive\Masaüstü\keten_work\erp\KetenErp.Api\bin\Debug\net8.0\Services\footer.jpg
+C:\Users\uur\OneDrive\Masaüstü\keten_work\erp\KetenErp.Api\bin\Debug\net8.0\Services\TeklifPdfOlusturucu.cs
+C:\Users\uur\OneDrive\Masaüstü\keten_work\erp\KetenErp.Api\bin\Debug\net8.0\Services\TokenService.cs
+C:\Users\uur\OneDrive\Masaüstü\keten_work\erp\KetenErp.Api\bin\Debug\net8.0\Services\weblogo.jpg

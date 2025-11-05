@@ -1,0 +1,36 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KetenErp.Api", "KetenErp.Api\KetenErp.Api.csproj", "{7DA56F80-5007-F6C7-2361-C5C0A2757913}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KetenErp.Core", "KetenErp.Core\KetenErp.Core.csproj", "{35E796AF-3FE3-5ECB-7782-A92E6EA150CF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KetenErp.Infrastructure", "KetenErp.Infrastructure\KetenErp.Infrastructure.csproj", "{38C3A534-EC05-12C0-0692-407FE847D4BF}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{7DA56F80-5007-F6C7-2361-C5C0A2757913}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7DA56F80-5007-F6C7-2361-C5C0A2757913}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7DA56F80-5007-F6C7-2361-C5C0A2757913}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7DA56F80-5007-F6C7-2361-C5C0A2757913}.Release|Any CPU.Build.0 = Release|Any CPU
+		{35E796AF-3FE3-5ECB-7782-A92E6EA150CF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{35E796AF-3FE3-5ECB-7782-A92E6EA150CF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{35E796AF-3FE3-5ECB-7782-A92E6EA150CF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{35E796AF-3FE3-5ECB-7782-A92E6EA150CF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{38C3A534-EC05-12C0-0692-407FE847D4BF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{38C3A534-EC05-12C0-0692-407FE847D4BF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{38C3A534-EC05-12C0-0692-407FE847D4BF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{38C3A534-EC05-12C0-0692-407FE847D4BF}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {FB203249-CF92-4413-A1AD-3F360EA7FA9C}
+	EndGlobalSection
+EndGlobal
