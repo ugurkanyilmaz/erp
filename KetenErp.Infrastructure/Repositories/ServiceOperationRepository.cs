@@ -68,9 +68,56 @@ namespace KetenErp.Infrastructure.Repositories
 
         public async Task<ServiceOperation> UpdateAsync(ServiceOperation op)
         {
-            _db.ServiceOperations.Update(op);
+            // Load existing operation with all related entities
+            var existing = await _db.ServiceOperations
+                .Include(x => x.ChangedParts)
+                .Include(x => x.ServiceItems)
+                .FirstOrDefaultAsync(x => x.Id == op.Id);
+
+            if (existing == null)
+            {
+                throw new System.InvalidOperationException($"ServiceOperation with ID {op.Id} not found");
+            }
+
+            // Update scalar properties
+            existing.IslemBitisTarihi = op.IslemBitisTarihi;
+            existing.YapanKisi = op.YapanKisi;
+            existing.ServiceRecordId = op.ServiceRecordId;
+
+            // Update ChangedParts: remove old ones and add new ones
+            if (existing.ChangedParts != null)
+            {
+                _db.ChangedParts.RemoveRange(existing.ChangedParts);
+            }
+            if (op.ChangedParts != null && op.ChangedParts.Any())
+            {
+                foreach (var part in op.ChangedParts)
+                {
+                    part.ServiceOperationId = existing.Id;
+                    part.Id = 0; // Ensure new ID is generated
+                    _db.ChangedParts.Add(part);
+                }
+            }
+
+            // Update ServiceItems: remove old ones and add new ones
+            if (existing.ServiceItems != null)
+            {
+                _db.ServiceItems.RemoveRange(existing.ServiceItems);
+            }
+            if (op.ServiceItems != null && op.ServiceItems.Any())
+            {
+                foreach (var item in op.ServiceItems)
+                {
+                    item.ServiceOperationId = existing.Id;
+                    item.Id = 0; // Ensure new ID is generated
+                    _db.ServiceItems.Add(item);
+                }
+            }
+
             await _db.SaveChangesAsync();
-            return op;
+            
+            // Reload to return updated entity with new IDs
+            return await GetByIdAsync(existing.Id) ?? existing;
         }
     }
 }

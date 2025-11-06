@@ -64,6 +64,7 @@ export default function Muhasebe(props) {
   const [bulkPrices, setBulkPrices] = useState({});
   const [bulkRecipientEmail, setBulkRecipientEmail] = useState('');
   const [bulkOperations, setBulkOperations] = useState({});
+  const [bulkPhotos, setBulkPhotos] = useState({});
 
   const filteredForBulk = servisKayitlari.filter(s => !bulkFilterFirma || (s.firmaIsmi || '').toLowerCase().includes(bulkFilterFirma.toLowerCase()));
 
@@ -81,35 +82,77 @@ export default function Muhasebe(props) {
     // fetch operations for each selected record so we can compute accurate totals and show details
     const opsMap = {};
     const priceInit = {};
+    const recordMap = {};
+    const photosMap = {};
+    
     try {
       await Promise.all(bulkSelectedIds.map(async (id) => {
         try {
+          // Fetch full operation details including all related entities
           const ops = await serviceApi.getServiceOperations(id);
           opsMap[id] = ops || [];
-          // compute totals
+          
+          // Also fetch the service record to get notes
+          const rec = servisKayitlari.find(s => s.id === id);
+          if (rec) {
+            recordMap[id] = rec;
+          }
+          
+          // Fetch photos for this record
+          try {
+            const photos = await serviceApi.getServiceRecordPhotos(id);
+            photosMap[id] = photos || [];
+          } catch (photoErr) {
+            console.error('Could not load photos for', id, photoErr);
+            photosMap[id] = [];
+          }
+          
+          // compute totals - use listPrice with discount if available, else fall back to price
           let partsTotal = 0;
           let servicesTotal = 0;
+          
           (ops || []).forEach(op => {
             (op.changedParts || []).forEach(p => {
               const qty = Number(p.quantity || 0);
-              const price = Number(p.price || 0);
-              partsTotal += qty * price;
+              // Use listPrice if available and greater than 0, otherwise use price
+              const listPrice = (p.listPrice !== undefined && p.listPrice !== null && p.listPrice > 0) ? p.listPrice : p.price;
+              const discount = Number(p.discountPercent || 0);
+              const finalPrice = listPrice * (1 - (discount / 100));
+              partsTotal += qty * finalPrice;
             });
+            
             (op.serviceItems || []).forEach(s => {
-              servicesTotal += Number(s.price || 0);
+              // Use listPrice if available and greater than 0, otherwise use price
+              const listPrice = (s.listPrice !== undefined && s.listPrice !== null && s.listPrice > 0) ? s.listPrice : s.price;
+              const discount = Number(s.discountPercent || 0);
+              const finalPrice = listPrice * (1 - (discount / 100));
+              servicesTotal += finalPrice;
             });
           });
-          priceInit[id] = { partsPrice: partsTotal, servicesPrice: servicesTotal, note: '' };
+          
+          // Initialize with computed totals and record notes if available
+          priceInit[id] = { 
+            partsPrice: partsTotal, 
+            servicesPrice: servicesTotal, 
+            note: rec?.notlar || ''
+          };
         } catch (err) {
           console.error('Could not load ops for', id, err);
           opsMap[id] = [];
-          priceInit[id] = { partsPrice: 0, servicesPrice: 0, note: '' };
+          photosMap[id] = [];
+          const rec = servisKayitlari.find(s => s.id === id);
+          priceInit[id] = { 
+            partsPrice: 0, 
+            servicesPrice: 0, 
+            note: rec?.notlar || ''
+          };
         }
       }));
     } catch (err) {
       console.error('Error while fetching operations for bulk edit', err);
     }
     setBulkOperations(opsMap);
+    setBulkPhotos(photosMap);
     setBulkPrices(priceInit);
     setBulkStep(2);
   };
@@ -125,9 +168,24 @@ export default function Muhasebe(props) {
     setBulkStep(1);
     setBulkPrices({});
     setBulkRecipientEmail('');
+    setBulkOperations({});
+    setBulkPhotos({});
   };
 
   const sendBulk = async () => {
+    // Validate that all records have at least some data
+    const invalidRecords = bulkSelectedIds.filter(id => {
+      const ops = bulkOperations[id] || [];
+      return ops.length === 0;
+    });
+    
+    if (invalidRecords.length > 0) {
+      const confirmSend = window.confirm(
+        `${invalidRecords.length} kayıt için işlem bulunamadı. Yine de devam etmek istiyor musunuz?`
+      );
+      if (!confirmSend) return;
+    }
+    
     const payload = bulkSelectedIds.map(id => ({
       id,
       partsPrice: bulkPrices[id]?.partsPrice || 0,
@@ -135,16 +193,19 @@ export default function Muhasebe(props) {
       email: bulkRecipientEmail || '',
       note: bulkPrices[id]?.note || ''
     }));
+    
     if (outlet.sendBulkQuotes) {
       try {
         // backend expects an object with recipientEmail and items
         const requestBody = { recipientEmail: bulkRecipientEmail || '', items: payload };
         await outlet.sendBulkQuotes(requestBody);
-        setNotification({ type: 'success', message: 'Toplu teklifler gönderildi.' });
+        setNotification({ type: 'success', message: `${bulkSelectedIds.length} kayıt için toplu teklif başarıyla gönderildi.` });
+        // Reload service records to reflect status changes
+        try { await reloadServisKayitlari(); } catch (e) { console.error('reload failed', e); }
         cancelBulk();
       } catch (err) {
         console.error('sendBulkQuotes failed', err);
-        setNotification({ type: 'error', message: 'Toplu teklifler gönderilemedi.' });
+        setNotification({ type: 'error', message: 'Toplu teklifler gönderilemedi: ' + (err?.response?.data?.message || err?.message || 'Bilinmeyen hata') });
       }
     } else {
       // placeholder: just show summary
@@ -223,17 +284,71 @@ export default function Muhasebe(props) {
                     return (
                       <div key={id} className="border rounded p-3">
                         <div className="flex items-center justify-between mb-2">
-                          <div className="font-semibold">{rec.servisTakipNo || rec.seriNo} — {rec.firmaIsmi}</div>
-                          <div className="text-xs text-slate-500">{rec.urunModeli}</div>
+                          <div>
+                            <div className="font-semibold">{rec.servisTakipNo || rec.seriNo} — {rec.firmaIsmi}</div>
+                            <div className="text-xs text-slate-500">{rec.urunModeli} • Durum: {rec.durum}</div>
+                            {rec.notlar && <div className="text-xs text-slate-600 mt-1 italic">Not: {rec.notlar}</div>}
+                          </div>
+                          <div className="text-sm font-semibold text-slate-700">
+                            Toplam İşlem: {(bulkOperations[id] || []).length}
+                          </div>
                         </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                               <div>
                                 <label className="label">Parça Toplamı</label>
-                                <input type="number" step="0.01" className="input input-bordered w-full" value={p.partsPrice} onChange={(e) => updatePriceFor(id, 'partsPrice', parseFloat(e.target.value || 0))} />
+                                <input 
+                                  type="text" 
+                                  inputMode="decimal"
+                                  pattern="[0-9]*[.,]?[0-9]*"
+                                  step="0.01" 
+                                  className="input input-bordered w-full placeholder:text-slate-400" 
+                                  placeholder="0.00"
+                                  value={p.partsPrice === 0 ? '' : (p.partsPrice !== undefined && p.partsPrice !== null ? p.partsPrice : '')}
+                                  onFocus={(e) => {
+                                    if (p.partsPrice === 0) {
+                                      updatePriceFor(id, 'partsPrice', '');
+                                    }
+                                  }}
+                                  onBlur={(e) => {
+                                    const currentPrice = bulkPrices[id]?.partsPrice;
+                                    if (currentPrice === '' || currentPrice === null || currentPrice === undefined) {
+                                      updatePriceFor(id, 'partsPrice', 0);
+                                    }
+                                  }}
+                                  onChange={(e) => {
+                                    const raw = e.target.value.replace(',', '.');
+                                    const v = raw === '' ? '' : (isNaN(Number(raw)) ? '' : parseFloat(raw));
+                                    updatePriceFor(id, 'partsPrice', v);
+                                  }} 
+                                />
                               </div>
                               <div>
                                 <label className="label">Hizmet Toplamı</label>
-                                <input type="number" step="0.01" className="input input-bordered w-full" value={p.servicesPrice} onChange={(e) => updatePriceFor(id, 'servicesPrice', parseFloat(e.target.value || 0))} />
+                                <input 
+                                  type="text" 
+                                  inputMode="decimal"
+                                  pattern="[0-9]*[.,]?[0-9]*"
+                                  step="0.01" 
+                                  className="input input-bordered w-full placeholder:text-slate-400" 
+                                  placeholder="0.00"
+                                  value={p.servicesPrice === 0 ? '' : (p.servicesPrice !== undefined && p.servicesPrice !== null ? p.servicesPrice : '')}
+                                  onFocus={(e) => {
+                                    if (p.servicesPrice === 0) {
+                                      updatePriceFor(id, 'servicesPrice', '');
+                                    }
+                                  }}
+                                  onBlur={(e) => {
+                                    const currentPrice = bulkPrices[id]?.servicesPrice;
+                                    if (currentPrice === '' || currentPrice === null || currentPrice === undefined) {
+                                      updatePriceFor(id, 'servicesPrice', 0);
+                                    }
+                                  }}
+                                  onChange={(e) => {
+                                    const raw = e.target.value.replace(',', '.');
+                                    const v = raw === '' ? '' : (isNaN(Number(raw)) ? '' : parseFloat(raw));
+                                    updatePriceFor(id, 'servicesPrice', v);
+                                  }} 
+                                />
                               </div>
                               <div>
                                 <label className="label">Toplam</label>
@@ -245,29 +360,108 @@ export default function Muhasebe(props) {
                               <input className="input input-bordered w-full" value={p.note || ''} onChange={(e) => updatePriceFor(id, 'note', e.target.value)} placeholder="İsteğe bağlı not" />
                             </div>
                             <div className="mt-3">
+                              <label className="label">Kayıt Fotoğrafları</label>
+                              <div className="mb-2">
+                                {(bulkPhotos[id] || []).length === 0 && (
+                                  <div className="text-xs text-slate-500 italic">Bu kayıt için fotoğraf bulunmuyor.</div>
+                                )}
+                                {(bulkPhotos[id] || []).length > 0 && (
+                                  <div className="grid grid-cols-4 gap-2">
+                                    {(bulkPhotos[id] || []).map((photo, photoIdx) => (
+                                      <div key={photo.id || photoIdx} className="relative group">
+                                        <a 
+                                          href={photo.url || photo.Url} 
+                                          target="_blank" 
+                                          rel="noreferrer" 
+                                          className="block"
+                                        >
+                                          <img 
+                                            src={photo.url || photo.Url} 
+                                            alt={`Foto ${photoIdx + 1}`} 
+                                            className="object-cover w-full h-20 rounded border hover:ring-2 hover:ring-indigo-400 transition"
+                                          />
+                                        </a>
+                                        {canEdit && (
+                                          <button
+                                            onClick={async (e) => {
+                                              e.preventDefault();
+                                              if (!window.confirm('Bu fotoğrafı silmek istediğinizden emin misiniz?')) return;
+                                              try {
+                                                await serviceApi.deleteServiceRecordPhoto(id, photo.id);
+                                                setBulkPhotos(prev => ({
+                                                  ...prev,
+                                                  [id]: (prev[id] || []).filter(p => p.id !== photo.id)
+                                                }));
+                                                setNotification({ type: 'success', message: 'Fotoğraf silindi.' });
+                                              } catch (err) {
+                                                console.error('Could not delete photo', err);
+                                                setNotification({ type: 'error', message: 'Fotoğraf silinemedi.' });
+                                              }
+                                            }}
+                                            className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                                            title="Fotoğrafı sil"
+                                          >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                            </svg>
+                                          </button>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="mt-3">
                               <label className="label">Detaylı İşlemler</label>
                               <div className="text-sm text-slate-600 space-y-2">
-                                {(bulkOperations[id] || []).map(op => (
+                                {(bulkOperations[id] || []).length === 0 && (
+                                  <div className="text-xs text-slate-500 italic">Bu kayıt için henüz işlem eklenmemiş.</div>
+                                )}
+                                {(bulkOperations[id] || []).map((op, opIdx) => (
                                   <div key={op.id} className="border rounded p-2 bg-slate-50">
-                                    <div className="font-medium">İşlem #{op.id} — Yapan: {op.yapanKisi || '-'}</div>
+                                    <div className="font-medium">İşlem #{opIdx + 1} (ID: {op.id}) — Yapan: {op.yapanKisi || '-'}</div>
                                     <div className="text-xs text-slate-500 mb-1">Tarih: {op.islemBitisTarihi || '-'}</div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                       <div>
                                         <div className="text-xs font-semibold">Değişen Parçalar</div>
                                         {(op.changedParts || []).length === 0 && <div className="text-xs text-slate-500">Yok</div>}
-                                        <ul className="text-xs">
-                                          {(op.changedParts || []).map((cp, i) => (
-                                            <li key={i} className="flex justify-between"><span>{cp.partName} x{cp.quantity}</span><span>{(Number(cp.price)||0).toFixed(2)} ₺</span></li>
-                                          ))}
+                                        <ul className="text-xs space-y-1">
+                                          {(op.changedParts || []).map((cp, i) => {
+                                            const listPrice = (cp.listPrice !== undefined && cp.listPrice !== null && cp.listPrice > 0) ? cp.listPrice : cp.price;
+                                            const discount = Number(cp.discountPercent || 0);
+                                            const finalPrice = listPrice * (1 - (discount / 100));
+                                            const totalPrice = finalPrice * Number(cp.quantity || 0);
+                                            return (
+                                              <li key={i} className="flex justify-between">
+                                                <span>{cp.partName} x{cp.quantity}</span>
+                                                <span className="font-medium">
+                                                  {totalPrice.toFixed(2)} ₺
+                                                  {discount > 0 && <span className="text-xs text-slate-500 ml-1">(%{discount} ind.)</span>}
+                                                </span>
+                                              </li>
+                                            );
+                                          })}
                                         </ul>
                                       </div>
                                       <div>
                                         <div className="text-xs font-semibold">Hizmet Kalemleri</div>
                                         {(op.serviceItems || []).length === 0 && <div className="text-xs text-slate-500">Yok</div>}
-                                        <ul className="text-xs">
-                                          {(op.serviceItems || []).map((si, i) => (
-                                            <li key={i} className="flex justify-between"><span>{si.name}</span><span>{(Number(si.price)||0).toFixed(2)} ₺</span></li>
-                                          ))}
+                                        <ul className="text-xs space-y-1">
+                                          {(op.serviceItems || []).map((si, i) => {
+                                            const listPrice = (si.listPrice !== undefined && si.listPrice !== null && si.listPrice > 0) ? si.listPrice : si.price;
+                                            const discount = Number(si.discountPercent || 0);
+                                            const finalPrice = listPrice * (1 - (discount / 100));
+                                            return (
+                                              <li key={i} className="flex justify-between">
+                                                <span>{si.name}</span>
+                                                <span className="font-medium">
+                                                  {finalPrice.toFixed(2)} ₺
+                                                  {discount > 0 && <span className="text-xs text-slate-500 ml-1">(%{discount} ind.)</span>}
+                                                </span>
+                                              </li>
+                                            );
+                                          })}
                                         </ul>
                                       </div>
                                     </div>
@@ -397,13 +591,16 @@ export default function Muhasebe(props) {
                 {canEdit ? (
                   <>
                     <button onClick={async () => {
+                      console.log('Kaydet butonuna basıldı');
                       try {
                         // ensure ServiceRecordId and Id present
                         const payload = { ...op, serviceRecordId: Number(selectedRecordId), ServiceRecordId: Number(selectedRecordId), Id: op.id, id: op.id };
+                        console.log('Kaydedilecek payload:', payload);
                         await serviceApi.updateServiceOperation(selectedRecordId, op.id, payload);
+                        console.log('Kaydetme başarılı, bildirim gönderiliyor');
                         setNotification({ type: 'success', message: 'Fiyatlar kaydedildi.' });
                       } catch (err) {
-                        console.error(err);
+                        console.error('Kaydetme hatası:', err);
                         setNotification({ type: 'error', message: 'Kaydetme hatası.' });
                       }
                     }} className="btn btn-sm btn-primary">Kaydet</button>
@@ -423,10 +620,12 @@ export default function Muhasebe(props) {
                     <div><div className="font-medium">{p.partName}</div><div className="text-xs text-slate-500">Adet: {p.quantity}</div></div>
                     <div className="flex items-center gap-2">
                       <input
-                        type="number"
-                        step="0.01"
-                        className="input input-bordered w-32"
-                        value={p.price !== undefined && p.price !== null ? p.price : ''}
+                        type="text"
+                        inputMode="decimal"
+                        pattern="[0-9]*[.,]?[0-9]*"
+                        className="input input-bordered w-32 placeholder:text-slate-400"
+                        placeholder="0.00"
+                        value={p.price === 0 ? '' : (p.price !== undefined && p.price !== null ? p.price : '')}
                         onFocus={() => {
                           // If the value is zero, clear it so typing replaces it immediately
                           if (p.price === 0) {
@@ -441,7 +640,7 @@ export default function Muhasebe(props) {
                           }
                         }}
                         onChange={(e) => {
-                          const raw = e.target.value;
+                          const raw = e.target.value.replace(',', '.');
                           const v = raw === '' ? '' : (isNaN(Number(raw)) ? '' : parseFloat(raw));
                           setAccountingOperations((prev) => prev.map((oo) => oo.id === op.id ? ({ ...oo, changedParts: (oo.changedParts || []).map((pp, i) => i === pIdx ? ({ ...pp, price: v }) : pp) }) : oo));
                         }}
@@ -463,10 +662,12 @@ export default function Muhasebe(props) {
                     <div><div className="font-medium">{s.name}</div></div>
                     <div className="flex items-center gap-2">
                       <input
-                        type="number"
-                        step="0.01"
-                        className="input input-bordered w-32"
-                        value={s.price !== undefined && s.price !== null ? s.price : ''}
+                        type="text"
+                        inputMode="decimal"
+                        pattern="[0-9]*[.,]?[0-9]*"
+                        className="input input-bordered w-32 placeholder:text-slate-400"
+                        placeholder="0.00"
+                        value={s.price === 0 ? '' : (s.price !== undefined && s.price !== null ? s.price : '')}
                         onFocus={() => {
                           if (s.price === 0) {
                             setAccountingOperations((prev) => prev.map((oo) => oo.id === op.id ? ({ ...oo, serviceItems: (oo.serviceItems || []).map((ss, i) => i === sIdx ? ({ ...ss, price: '' }) : ss) }) : oo));
@@ -479,7 +680,7 @@ export default function Muhasebe(props) {
                           }
                         }}
                         onChange={(e) => {
-                          const raw = e.target.value;
+                          const raw = e.target.value.replace(',', '.');
                           const v = raw === '' ? '' : (isNaN(Number(raw)) ? '' : parseFloat(raw));
                           setAccountingOperations((prev) => prev.map((oo) => oo.id === op.id ? ({ ...oo, serviceItems: (oo.serviceItems || []).map((ss, i) => i === sIdx ? ({ ...ss, price: v }) : ss) }) : oo));
                         }}

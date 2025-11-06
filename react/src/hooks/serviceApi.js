@@ -45,6 +45,11 @@ export async function getNextBelgeNo() {
   return res.data;
 }
 
+export async function getNextTakipNo() {
+  const res = await api.get('/api/servicerecords/nexttakipno');
+  return res.data;
+}
+
 // Signal that a record is waiting for photos (mobile upload flow)
 export async function signalWaitingForPhotos(recordId) {
   const res = await api.post(`/api/servicerecords/${recordId}/signal`);
@@ -63,6 +68,16 @@ export async function getServiceRecordPhotos(recordId) {
   return res.data;
 }
 
+export async function getCompletedServiceRecords() {
+  const res = await api.get('/api/servicerecords/completed');
+  return res.data;
+}
+
+export async function getCompletedServiceRecordDetails(archiveId) {
+  const res = await api.get(`/api/servicerecords/completed/${archiveId}/details`);
+  return res.data;
+}
+
 // Delete a single photo by id for a given record
 export async function deleteServiceRecordPhoto(recordId, photoId) {
   const res = await api.delete(`/api/servicerecords/${recordId}/photos/${photoId}`);
@@ -71,6 +86,22 @@ export async function deleteServiceRecordPhoto(recordId, photoId) {
 
 export async function postBulkQuotes(payload) {
   const res = await api.post('/api/servicerecords/bulkquote', payload);
+  return res.data;
+}
+
+// Template management
+export async function getServiceTemplates(productSku) {
+  const res = await api.get('/api/servicetemplates', { params: { productSku } });
+  return res.data;
+}
+
+export async function createServiceTemplate(payload) {
+  const res = await api.post('/api/servicetemplates', payload);
+  return res.data;
+}
+
+export async function deleteServiceTemplate(id) {
+  const res = await api.delete(`/api/servicetemplates/${id}`);
   return res.data;
 }
 
@@ -83,13 +114,19 @@ export default {
   deleteServiceOperation,
   deleteServiceRecord,
   updateServiceRecord,
+  getCompletedServiceRecords,
+  getCompletedServiceRecordDetails,
   postBulkQuotes,
   getNextBelgeNo,
+  getNextTakipNo,
   signalWaitingForPhotos,
   getWaitingRecord,
   getServiceRecordPhotos,
   uploadServiceRecordPhotos,
   deleteServiceRecordPhoto,
+  getServiceTemplates,
+  createServiceTemplate,
+  deleteServiceTemplate,
 };
 
 // Upload one or more photos (FormData) for a service record

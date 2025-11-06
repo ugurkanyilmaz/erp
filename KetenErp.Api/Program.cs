@@ -109,6 +109,7 @@ builder.Services.AddControllers()
 // register service repositories
 builder.Services.AddScoped<KetenErp.Core.Service.IServiceRecordRepository, KetenErp.Infrastructure.Repositories.ServiceRecordRepository>();
 builder.Services.AddScoped<KetenErp.Core.Service.IServiceOperationRepository, KetenErp.Infrastructure.Repositories.ServiceOperationRepository>();
+builder.Services.AddScoped<KetenErp.Core.Service.IServiceTemplateRepository, KetenErp.Infrastructure.Repositories.ServiceTemplateRepository>();
 
 var app = builder.Build();
 
@@ -213,7 +214,7 @@ using (var scope = app.Services.CreateScope())
     {
         using var connCheck = db.Database.GetDbConnection();
         connCheck.Open();
-    var expectedTables = new[] { "AspNetUsers", "AspNetRoles", "Products", "SpareParts", "ServiceRecords", "ServiceOperations", "ChangedParts", "ServiceItems", "ServiceRecordPhotos", "SentQuotes" };
+    var expectedTables = new[] { "AspNetUsers", "AspNetRoles", "Products", "SpareParts", "ServiceRecords", "ServiceOperations", "ChangedParts", "ServiceItems", "ServiceRecordPhotos", "SentQuotes", "CompletedServiceRecords", "ServiceTemplates", "Suggestions", "EmailAccounts" };
         var missing = new List<string>();
         foreach (var tname in expectedTables)
         {
@@ -385,6 +386,124 @@ using (var scope = app.Services.CreateScope())
     catch (Exception ex)
     {
         Console.WriteLine($"Could not ensure Notlar column exists: {ex.Message}");
+    }
+
+    // Ensure CompletedServiceRecords table exists (added by recent change). If migrations aren't used,
+    // create the table explicitly to avoid runtime 'no such table' errors when reading the archive.
+    try
+    {
+        using var conn = db.Database.GetDbConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        // Create table with minimal schema matching the CompletedServiceRecord entity
+        cmd.CommandText = @"CREATE TABLE IF NOT EXISTS CompletedServiceRecords (
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            OriginalServiceRecordId INTEGER,
+            BelgeNo TEXT,
+            ServisTakipNo TEXT,
+            FirmaIsmi TEXT,
+            UrunModeli TEXT,
+            GelisTarihi TEXT,
+            CompletedAt TEXT NOT NULL,
+            SerializedRecordJson TEXT
+        );";
+        cmd.ExecuteNonQuery();
+        Console.WriteLine("Ensured CompletedServiceRecords table exists.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Could not ensure CompletedServiceRecords table exists: {ex.Message}");
+    }
+
+    // Ensure ServiceTemplates table exists (for storing operation templates)
+    try
+    {
+        using var connTmp = db.Database.GetDbConnection();
+        connTmp.Open();
+        using var cmdTmp = connTmp.CreateCommand();
+        cmdTmp.CommandText = @"CREATE TABLE IF NOT EXISTS ServiceTemplates (
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            Name TEXT NOT NULL,
+            ProductSKU TEXT,
+            ChangedPartsJson TEXT,
+            ServiceItemsJson TEXT,
+            YapanKisi TEXT,
+            CreatedAt TEXT NOT NULL
+        );";
+        cmdTmp.ExecuteNonQuery();
+        Console.WriteLine("Ensured ServiceTemplates table exists.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Could not ensure ServiceTemplates table exists: {ex.Message}");
+    }
+
+    // Ensure Customers table exists (simple table for customer management)
+    try
+    {
+        using var connCust = db.Database.GetDbConnection();
+        connCust.Open();
+        using var cmdCust = connCust.CreateCommand();
+        cmdCust.CommandText = @"CREATE TABLE IF NOT EXISTS Customers (
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            Name TEXT NOT NULL,
+            Email TEXT
+        );";
+        cmdCust.ExecuteNonQuery();
+        Console.WriteLine("Ensured Customers table exists.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Could not ensure Customers table exists: {ex.Message}");
+    }
+
+    // Ensure Suggestions table exists (for storing settings-driven suggestion lists)
+    try
+    {
+        using var connSug = db.Database.GetDbConnection();
+        connSug.Open();
+        using var cmdSug = connSug.CreateCommand();
+        cmdSug.CommandText = @"CREATE TABLE IF NOT EXISTS Suggestions (
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            Key TEXT NOT NULL,
+            Value TEXT NOT NULL,
+            SortOrder INTEGER,
+            CreatedAt TEXT NOT NULL,
+            CreatedBy TEXT
+        );";
+        cmdSug.ExecuteNonQuery();
+        Console.WriteLine("Ensured Suggestions table exists.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Could not ensure Suggestions table exists: {ex.Message}");
+    }
+
+    // Ensure EmailAccounts table exists (for SMTP account settings used for sending offers)
+    try
+    {
+        using var connEmail = db.Database.GetDbConnection();
+        connEmail.Open();
+        using var cmdEmail = connEmail.CreateCommand();
+        cmdEmail.CommandText = @"CREATE TABLE IF NOT EXISTS EmailAccounts (
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            Name TEXT NOT NULL,
+            Host TEXT NOT NULL,
+            Port INTEGER NOT NULL DEFAULT 587,
+            UserName TEXT,
+            EncryptedPassword TEXT,
+            FromAddress TEXT NOT NULL,
+            UseTls INTEGER NOT NULL DEFAULT 1,
+            IsActive INTEGER NOT NULL DEFAULT 0,
+            CreatedBy TEXT,
+            CreatedAt TEXT NOT NULL
+        );";
+        cmdEmail.ExecuteNonQuery();
+        Console.WriteLine("Ensured EmailAccounts table exists.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Could not ensure EmailAccounts table exists: {ex.Message}");
     }
 
     string[] roles = new[] { "admin", "servis", "muhasebe", "user" };

@@ -160,9 +160,18 @@ export default function TeknikServis() {
         await serviceApi.updateServiceOperation(selectedRecord.id, operationId, newOp);
         const ops = await serviceApi.getServiceOperations(selectedRecord.id);
         setOperations(ops || []);
+      // notify user of success/failure using the shared Notification
       } catch (err) {
         console.error('Could not save operation', err);
-        alert('Kaydetme sırasında hata oluştu');
+        setNotification({ type: 'error', message: 'Kaydetme sırasında hata oluştu.' });
+        return;
+      }
+      // show success message after successful save
+      try {
+        setNotification({ type: 'success', message: 'İşlem kaydedildi.' });
+      } catch (e) {
+        // ignore notification failures
+        console.error('Notification failed', e);
       }
     }
   };
@@ -253,7 +262,7 @@ export default function TeknikServis() {
         </AnimatePresence>
         <Notification type={notification.type || 'info'} message={notification.message || ''} onClose={clearNotification} />
 
-  <ServiceDetailModal open={detailOpen} onClose={closeDetail} record={selectedRecord} operations={operations} loading={opsLoading} onDeleteOperation={deleteOperation} onUpdateOperation={updateOperationLocal} canEdit={roles.includes('admin') || roles.includes('muhasebe')} onDeleteRecord={deleteRecord} canDelete={roles.includes('admin')} showPrices={!!detailOptions.showPrices} onUpdateRecord={updateRecord} />
+  <ServiceDetailModal open={detailOpen} onClose={closeDetail} record={selectedRecord} operations={operations} loading={opsLoading} onDeleteOperation={deleteOperation} onUpdateOperation={updateOperationLocal} canEdit={roles.includes('admin') || roles.includes('muhasebe')} onDeleteRecord={deleteRecord} canDelete={roles.includes('admin')} showPrices={!!detailOptions.showPrices} onUpdateRecord={updateRecord} setNotification={setNotification} />
       </main>
     </div>
   );

@@ -121,6 +121,32 @@ namespace KetenErp.Api.Controllers
             return Ok(new { BelgeNo = nextStr });
         }
 
+    // Return next auto-generated ServisTakipNo in format SRV-0001, SRV-0002, ...
+    [AllowAnonymous]
+    [HttpGet("nexttakipno")]
+        public async Task<IActionResult> GetNextTakipNo()
+        {
+            var all = await _repo.GetAllAsync();
+            var prefix = "SRV-";
+            int max = 0;
+            foreach (var r in all)
+            {
+                if (string.IsNullOrWhiteSpace(r.ServisTakipNo)) continue;
+                if (!r.ServisTakipNo.StartsWith(prefix)) continue;
+                var digits = r.ServisTakipNo.Substring(prefix.Length);
+                // strip non-digits
+                var numStr = new string(digits.Where(char.IsDigit).ToArray());
+                if (int.TryParse(numStr, out var n))
+                {
+                    if (n > max) max = n;
+                }
+            }
+
+            var next = max + 1;
+            var nextStr = prefix + next.ToString("D4");
+            return Ok(new { ServisTakipNo = nextStr });
+        }
+
         // List photos for a service record
         [HttpGet("{id:int}/photos")]
         public async Task<IActionResult> GetPhotos(int id)
@@ -272,6 +298,73 @@ namespace KetenErp.Api.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAll() => Ok(await _repo.GetAllAsync());
 
+        // List archived/completed service records
+        [HttpGet("completed")]
+        public async Task<IActionResult> GetCompleted()
+        {
+            // If the table is not present yet, return empty list instead of throwing
+            try
+            {
+                using var conn = _db.Database.GetDbConnection();
+                conn.Open();
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name='CompletedServiceRecords';";
+                var r = cmd.ExecuteScalar();
+                if (r == null) return Ok(new List<object>());
+            }
+            catch
+            {
+                return Ok(new List<object>());
+            }
+
+            var list = await _db.CompletedServiceRecords.OrderByDescending(c => c.CompletedAt).ToListAsync();
+            return Ok(list);
+        }
+
+        // Get detailed information about an archived/completed service record
+        // This returns the archived snapshot (serialized JSON) plus related sent-quote info
+        [HttpGet("completed/{archiveId:int}/details")]
+        public async Task<IActionResult> GetCompletedDetails(int archiveId)
+        {
+            var archive = await _db.CompletedServiceRecords.FindAsync(archiveId);
+            if (archive == null) return NotFound();
+
+            // Find SentQuotes that reference the original service record id (ServiceRecordIds stored as CSV)
+            var allQuotes = await _db.SentQuotes.ToListAsync();
+            var matched = new List<object>();
+            if (archive.OriginalServiceRecordId.HasValue)
+            {
+                var orig = archive.OriginalServiceRecordId.Value.ToString();
+                foreach (var q in allQuotes)
+                {
+                    if (string.IsNullOrWhiteSpace(q.ServiceRecordIds)) continue;
+                    var parts = q.ServiceRecordIds.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Trim());
+                    if (parts.Contains(orig))
+                    {
+                        matched.Add(new { q.Id, q.RecipientEmail, q.BelgeNo, q.PdfFileName, q.SentAt, q.CustomerName });
+                    }
+                }
+            }
+
+            // Return archive metadata + matched quotes + the serialized JSON string for the frontend to parse
+            var result = new
+            {
+                archive.Id,
+                archive.OriginalServiceRecordId,
+                archive.BelgeNo,
+                archive.ServisTakipNo,
+                archive.FirmaIsmi,
+                archive.UrunModeli,
+                archive.GelisTarihi,
+                archive.CompletedAt,
+                QuotesCount = matched.Count,
+                Quotes = matched,
+                SerializedRecordJson = archive.SerializedRecordJson
+            };
+
+            return Ok(result);
+        }
+
         [HttpGet("{id:int}")]
         public async Task<IActionResult> Get(int id)
         {
@@ -295,6 +388,16 @@ namespace KetenErp.Api.Controllers
                     dto.BelgeNo = val?.BelgeNo;
                 }
             }
+            // if ServisTakipNo not provided, auto-generate next one
+            if (string.IsNullOrWhiteSpace(dto.ServisTakipNo))
+            {
+                var nt = await GetNextTakipNo();
+                if (nt is OkObjectResult ok && ok.Value != null)
+                {
+                    var val = ok.Value as dynamic;
+                    dto.ServisTakipNo = val?.ServisTakipNo;
+                }
+            }
             var created = await _repo.AddAsync(dto);
             return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
         }
@@ -303,8 +406,141 @@ namespace KetenErp.Api.Controllers
         public async Task<IActionResult> Update(int id, ServiceRecord dto)
         {
             if (id != dto.Id) return BadRequest();
+
+            // Normalize status variants (frontend sometimes sends 'Tamamlandi' without Turkish char)
+            string incomingStatus = (dto.Durum ?? string.Empty).Trim();
+            if (string.Equals(incomingStatus, "Tamamlandi", StringComparison.OrdinalIgnoreCase)) incomingStatus = ServiceRecordStatus.Tamamlandi;
+
+            // If the new status is completed, archive the record into CompletedServiceRecords
+            if (string.Equals(incomingStatus, ServiceRecordStatus.Tamamlandi, StringComparison.Ordinal))
+            {
+                // load full record (includes operations via repository)
+                var existing = await _repo.GetByIdAsync(id);
+                if (existing == null) return NotFound();
+
+                // Load related child collections that repository may not include
+                var operations = await _db.ServiceOperations.Where(o => o.ServiceRecordId == id)
+                                            .Include(o => o.ChangedParts)
+                                            .Include(o => o.ServiceItems)
+                                            .ToListAsync();
+
+                var photos = await _db.ServiceRecordPhotos.Where(p => p.ServiceRecordId == id).ToListAsync();
+
+                // Build a serializable snapshot containing all details but avoid EF navigation cycles
+                var recordDto = new
+                {
+                    existing.Id,
+                    existing.ServisTakipNo,
+                    existing.UrunModeli,
+                    existing.FirmaIsmi,
+                    existing.GelisTarihi,
+                    existing.Durum,
+                    existing.BelgeNo,
+                    existing.AlanKisi,
+                    existing.Notlar
+                };
+
+                var opsDto = operations.Select(o => new
+                {
+                    o.Id,
+                    o.ServiceRecordId,
+                    o.IslemBitisTarihi,
+                    o.YapanKisi,
+                    ChangedParts = o.ChangedParts.Select(cp => new { cp.Id, cp.PartName, cp.Quantity, cp.Price, cp.ListPrice, cp.DiscountPercent }).ToList(),
+                    ServiceItems = o.ServiceItems.Select(si => new { si.Id, si.Name, si.Price, si.ListPrice, si.DiscountPercent }).ToList()
+                }).ToList();
+
+                var photosDto = photos.Select(p => new { p.Id, p.BelgeNo, p.FileName, p.FilePath, p.CreatedAt }).ToList();
+
+                var snapshot = new { Record = recordDto, Operations = opsDto, Photos = photosDto };
+
+                string json = System.Text.Json.JsonSerializer.Serialize(snapshot, new System.Text.Json.JsonSerializerOptions { WriteIndented = false, PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase });
+
+                var archive = new KetenErp.Core.Service.CompletedServiceRecord
+                {
+                    OriginalServiceRecordId = existing.Id,
+                    BelgeNo = existing.BelgeNo,
+                    ServisTakipNo = existing.ServisTakipNo,
+                    FirmaIsmi = existing.FirmaIsmi,
+                    UrunModeli = existing.UrunModeli,
+                    GelisTarihi = existing.GelisTarihi,
+                    CompletedAt = DateTime.UtcNow,
+                    SerializedRecordJson = json
+                };
+
+                // Before attempting to write to the CompletedServiceRecords table, ensure the table exists
+                try
+                {
+                    using var _connProbe = _db.Database.GetDbConnection();
+                    _connProbe.Open();
+                    using var _cmdProbe = _connProbe.CreateCommand();
+                    _cmdProbe.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name='CompletedServiceRecords';";
+                    var _probeRes = _cmdProbe.ExecuteScalar();
+                    if (_probeRes == null)
+                    {
+                        // Table missing: fallback to marking the existing record as 'Tamamlandı' and avoid archiving
+                        existing.Durum = ServiceRecordStatus.Tamamlandi;
+                        await _db.SaveChangesAsync();
+                        return Ok(new { archived = false, message = "CompletedServiceRecords table not present; record marked as completed only." });
+                    }
+                }
+                catch
+                {
+                    // If any error probing the DB, fall back safely to updating the record status only
+                    existing.Durum = ServiceRecordStatus.Tamamlandi;
+                    await _db.SaveChangesAsync();
+                    return Ok(new { archived = false, message = "Could not verify archive table; record marked as completed only." });
+                }
+
+                // perform deletion of child entities and add archive inside a transaction
+                using (var tx = await _db.Database.BeginTransactionAsync())
+                {
+                    try
+                    {
+                        _db.CompletedServiceRecords.Add(archive);
+                        await _db.SaveChangesAsync();
+
+                        // Remove child entities (changed parts, service items are included via operations)
+                        var opIds = operations.Select(o => o.Id).ToList();
+                        if (opIds.Any())
+                        {
+                            var changed = _db.ChangedParts.Where(cp => opIds.Contains(cp.ServiceOperationId));
+                            _db.ChangedParts.RemoveRange(changed);
+
+                            var items = _db.ServiceItems.Where(si => opIds.Contains(si.ServiceOperationId));
+                            _db.ServiceItems.RemoveRange(items);
+
+                            var opsToRemove = _db.ServiceOperations.Where(o => o.ServiceRecordId == id);
+                            _db.ServiceOperations.RemoveRange(opsToRemove);
+                        }
+
+                        // remove photos
+                        var phs = _db.ServiceRecordPhotos.Where(p => p.ServiceRecordId == id);
+                        _db.ServiceRecordPhotos.RemoveRange(phs);
+
+                        // finally remove the active record
+                        var r = await _db.ServiceRecords.FindAsync(id);
+                        if (r != null) _db.ServiceRecords.Remove(r);
+
+                        await _db.SaveChangesAsync();
+
+                        await tx.CommitAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        await tx.RollbackAsync();
+                        // Log full exception including inner exceptions and stack for diagnosis
+                        Console.WriteLine("Error archiving record: " + ex.ToString());
+                        // Return full exception text in detail to help debugging locally (remove in production)
+                        return StatusCode(500, new { message = "Could not archive record", detail = ex.ToString() });
+                    }
+                }
+
+                return Ok(new { archived = true, archiveId = archive.Id });
+            }
+
             // validate durum on update - default to Kayıt Açıldı if invalid
-            try { if (!ServiceRecordStatus.IsValid(dto.Durum)) dto.Durum = ServiceRecordStatus.KayitAcildi; } catch { dto.Durum = ServiceRecordStatus.KayitAcildi; }
+            try { if (!ServiceRecordStatus.IsValid(incomingStatus)) dto.Durum = ServiceRecordStatus.KayitAcildi; else dto.Durum = incomingStatus; } catch { dto.Durum = ServiceRecordStatus.KayitAcildi; }
             var updated = await _repo.UpdateAsync(dto);
             return Ok(updated);
         }

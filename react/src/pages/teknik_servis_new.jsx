@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import useOutsideClick from '../hooks/useOutsideClick';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import serviceApi from '../hooks/serviceApi';
 
@@ -11,8 +12,8 @@ function getDefaultDateTimeLocal() {
 }
 
 export default function ServisNew(props) {
-  const [localYeniKayit, setLocalYeniKayit] = useState({
-  servisTakipNo: '',
+  const [yeniKayit, setYeniKayit] = useState({
+    servisTakipNo: '',
     urunModeli: '',
     firmaIsmi: '',
     gelisTarihi: getDefaultDateTimeLocal(),
@@ -20,9 +21,6 @@ export default function ServisNew(props) {
     alanKisi: '',
     notlar: '',
   });
-
-  const yeniKayit = props.yeniKayit ?? localYeniKayit;
-  const setYeniKayit = props.setYeniKayit ?? setLocalYeniKayit;
   // Prefer props, then Outlet context (from wrapper), then local defaults
   const outlet = useOutletContext?.() ?? {};
   const products = props.products ?? outlet.products ?? [];
@@ -32,6 +30,7 @@ export default function ServisNew(props) {
 
   const localSuggestionsRef = useRef(null);
   const suggestionsRef = props.suggestionsRef ?? outlet.suggestionsRef ?? localSuggestionsRef;
+  const customerRef = useRef(null);
 
   const [localShowSuggestions, setLocalShowSuggestions] = useState(false);
   const showProductSuggestions = props.showProductSuggestions ?? outlet.showProductSuggestions ?? localShowSuggestions;
@@ -40,24 +39,96 @@ export default function ServisNew(props) {
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [customers, setCustomers] = useState([]);
+  const [customersLoading, setCustomersLoading] = useState(false);
+  const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
 
-  // On mount, fetch the next BelgeNo and prefill the field if empty
+  // Alan kişi suggestions (persisted in localStorage)
+  const [alanKisiSuggestions, setAlanKisiSuggestions] = useState([]);
+  useEffect(() => {
+    const key = 'ts_alanKisi_suggestions';
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/settings/suggestions/${encodeURIComponent(key)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (!mounted) return;
+          setAlanKisiSuggestions((data || []).map(d => d.value));
+          return;
+        }
+      } catch (e) {
+        // fallthrough to localStorage fallback
+      }
+
+      try {
+        const stored = JSON.parse(localStorage.getItem(key) || 'null');
+        if (Array.isArray(stored) && stored.length > 0) {
+          if (mounted) setAlanKisiSuggestions(stored.map(s => (typeof s === 'string' ? s : (s.value || ''))));
+          return;
+        }
+      } catch (e) { }
+
+      const defaults = ['Fatmanur','Yeliz','Seray','Hatice'];
+      try { localStorage.setItem(key, JSON.stringify(defaults)); } catch (e) { }
+      if (mounted) setAlanKisiSuggestions(defaults);
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  // On mount, fetch the next BelgeNo and ServisTakipNo and prefill the fields if empty
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const res = await serviceApi.getNextBelgeNo();
-        if (mounted && res && res.BelgeNo) {
-          // use functional update to avoid stale state
-          setYeniKayit(prev => ({ ...(prev || {}), belgeNo: res.BelgeNo }));
+        const [belgeRes, takipRes] = await Promise.all([
+          serviceApi.getNextBelgeNo(),
+          serviceApi.getNextTakipNo()
+        ]);
+        console.log('Auto numbers fetched:', { belgeRes, takipRes });
+        if (mounted && belgeRes && takipRes) {
+          const newBelgeNo = belgeRes.BelgeNo || belgeRes.belgeNo || '';
+          const newTakipNo = takipRes.ServisTakipNo || takipRes.servisTakipNo || '';
+          console.log('Setting auto numbers:', { newBelgeNo, newTakipNo });
+          setYeniKayit(prev => ({ 
+            ...prev, 
+            belgeNo: newBelgeNo,
+            servisTakipNo: newTakipNo
+          }));
         }
       } catch (e) {
         // ignore - optional
-        console.error('Could not fetch next BelgeNo', e);
+        console.error('Could not fetch next numbers', e);
+      }
+    })();
+
+    // fetch customers for the Firma İsmi datalist
+    (async () => {
+      setCustomersLoading(true);
+      try {
+        const res = await fetch('/api/customers');
+        if (res.ok) {
+          const data = await res.json();
+          if (mounted) setCustomers(data || []);
+        }
+      } catch (err) {
+        console.error('Could not load customers', err);
+      } finally {
+        if (mounted) setCustomersLoading(false);
       }
     })();
     return () => { mounted = false; };
   }, []);
+
+  // Close suggestion panels when clicking outside their containers using reusable hook
+  useOutsideClick([suggestionsRef, customerRef], () => {
+    try {
+      setShowProductSuggestions(false);
+      setShowCustomerSuggestions(false);
+    } catch (e) {
+      // ignore
+    }
+  });
 
   // If parent provided createRecord prop, use it; otherwise use local implementation
   const handleCreateRecord = props.createRecord ?? (async () => {
@@ -83,8 +154,20 @@ export default function ServisNew(props) {
       } catch (e) {
         // ignore
       }
-      // clear form for next entry
-  setYeniKayit({ servisTakipNo: '', urunModeli: '', firmaIsmi: '', gelisTarihi: getDefaultDateTimeLocal(), belgeNo: '', alanKisi: '', notlar: '' });
+      // clear form and fetch new auto numbers for next entry
+      const [nextBelge, nextTakip] = await Promise.all([
+        serviceApi.getNextBelgeNo(),
+        serviceApi.getNextTakipNo()
+      ]);
+      setYeniKayit({ 
+        servisTakipNo: nextTakip?.ServisTakipNo || nextTakip?.servisTakipNo || '', 
+        urunModeli: '', 
+        firmaIsmi: '', 
+        gelisTarihi: getDefaultDateTimeLocal(), 
+        belgeNo: nextBelge?.BelgeNo || nextBelge?.belgeNo || '', 
+        alanKisi: '', 
+        notlar: '' 
+      });
       // let the parent show a notification if provided, otherwise fallback to alert
       if (outlet.setNotification) {
         outlet.setNotification({ type: 'success', message: 'Kayıt oluşturuldu.' });
@@ -115,23 +198,81 @@ export default function ServisNew(props) {
           ["Servis Takip No", "servisTakipNo", "SN12345"],
           ["Firma İsmi", "firmaIsmi", "ACME Ltd."],
           ["Belge No", "belgeNo", "AUTO-0001"],
-        ].map(([label, key, placeholder]) => (
-          <div className="form-control mb-6" key={key}>
-            <label className="label text-sm font-semibold text-slate-700 mb-3">{label}:</label>
-            <input type="text" className="input input-bordered rounded-xl py-3 mt-2" placeholder={placeholder} value={yeniKayit[key]} onChange={(e) => setYeniKayit({ ...yeniKayit, [key]: e.target.value })} />
-          </div>
-        ))}
+        ].map(([label, key, placeholder]) => {
+          if (key === 'firmaIsmi') {
+            const filteredCustomers = (yeniKayit.firmaIsmi ? customers.filter(c => (c.name || '').toLowerCase().includes((yeniKayit.firmaIsmi || '').toLowerCase())) : customers);
+            return (
+              <div className="form-control mb-6" key={key}>
+                <label className="label text-sm font-semibold text-slate-700 mb-3">{label}:</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    className="input input-bordered rounded-xl py-3 mt-2 w-full"
+                    placeholder={placeholder}
+                    value={yeniKayit.firmaIsmi}
+                    onChange={(e) => { setYeniKayit({ ...yeniKayit, firmaIsmi: e.target.value }); setShowCustomerSuggestions(true); }}
+                    onFocus={() => setShowCustomerSuggestions(true)}
+                  />
 
-        {/* Alan Kişi - select box with fixed options */}
+                  {showCustomerSuggestions && (
+                    <div className="absolute left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-lg z-20 max-h-56 overflow-auto">
+                      {customersLoading && <div className="px-4 py-3 text-sm text-slate-500">Müşteriler yükleniyor...</div>}
+                      {!customersLoading && filteredCustomers.length === 0 && <div className="px-4 py-3 text-sm text-slate-500">Eşleşen müşteri bulunamadı.</div>}
+                      {!customersLoading && filteredCustomers.map((c) => (
+                        <button
+                          key={c.id}
+                          onClick={() => { setYeniKayit({ ...yeniKayit, firmaIsmi: c.name }); setShowCustomerSuggestions(false); }}
+                          className="w-full text-left px-4 py-3 hover:bg-slate-50 transition flex flex-col"
+                        >
+                          <div className="flex items-center justify-between"><div className="font-medium text-slate-800">{c.name}</div><div className="text-xs text-slate-500">{c.id ? `#${c.id}` : ''}</div></div>
+                          <div className="text-xs text-slate-500">{c.email || ''}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400 mt-2">Listeden seçebilir veya yeni bir müşteri adı yazabilirsiniz.</p>
+              </div>
+            );
+          }
+          return (
+            <div className="form-control mb-6" key={key}>
+              <label className="label text-sm font-semibold text-slate-700 mb-3">{label}:</label>
+              <input type="text" className="input input-bordered rounded-xl py-3 mt-2" placeholder={placeholder} value={yeniKayit[key]} onChange={(e) => setYeniKayit({ ...yeniKayit, [key]: e.target.value })} />
+            </div>
+          );
+        })}
+
+        {/* Alan Kişi - suggestions (managed in Ayarlar) */}
         <div className="form-control mb-6">
           <label className="label text-sm font-semibold text-slate-700 mb-3">Alan Kişi:</label>
-          <select className="select select-bordered rounded-xl py-3 mt-2" value={yeniKayit.alanKisi} onChange={(e) => setYeniKayit({ ...yeniKayit, alanKisi: e.target.value })}>
-            <option value="">-- Seçin --</option>
-            <option value="Fatmanur">Fatmanur</option>
-            <option value="Yeliz">Yeliz</option>
-            <option value="Seray">Seray</option>
-            <option value="Hatice">Hatice</option>
-          </select>
+          <div className="flex items-center gap-2">
+            <select className="select select-bordered rounded-xl py-3 mt-2 flex-1" value={yeniKayit.alanKisi} onChange={(e) => setYeniKayit({ ...yeniKayit, alanKisi: e.target.value })}>
+              <option value="">-- Seçin --</option>
+              {alanKisiSuggestions.map((s) => (<option key={s} value={s}>{s}</option>))}
+            </select>
+            <button title="Yönet" onClick={() => navigate('/settings/suggestions#alan')} className="btn btn-ghost btn-sm ml-1">⚙</button>
+            <button title="Mevcut değeri önerilere ekle" onClick={() => {
+              const val = (yeniKayit.alanKisi || '').trim();
+              if (!val) return;
+              const key = 'ts_alanKisi_suggestions';
+              (async () => {
+                try {
+                  const res = await fetch(`/api/settings/suggestions/${encodeURIComponent(key)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value: val }) });
+                  if (res.ok) {
+                    const created = await res.json();
+                    setAlanKisiSuggestions(prev => [created.value, ...prev.filter(x => x !== created.value)]);
+                    return;
+                  }
+                } catch (e) { }
+                // fallback
+                const next = [val, ...alanKisiSuggestions.filter(x => x !== val)];
+                try { localStorage.setItem(key, JSON.stringify(next)); } catch (e) { }
+                setAlanKisiSuggestions(next);
+              })();
+            }} className="btn btn-sm">+Ekle</button>
+          </div>
+          <p className="text-xs text-slate-400 mt-2">Listeden seçebilir veya yeni bir isim yazıp '+Ekle' ile önerilere ekleyebilirsiniz. Tam yönetim için <button className="link" onClick={() => navigate('/settings/suggestions#alan')}>Ayarlar</button>.</p>
         </div>
 
         <div className="form-control mb-6" ref={suggestionsRef}>

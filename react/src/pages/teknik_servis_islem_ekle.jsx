@@ -1,15 +1,46 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import useOutsideClick from '../hooks/useOutsideClick';
+import { useOutletContext, useNavigate } from 'react-router-dom';
 import serviceApi from '../hooks/serviceApi';
 import { QRCodeSVG } from 'qrcode.react';
 
 export default function IslemEkle(props) {
   const outlet = useOutletContext?.() ?? {};
+  const navigate = useNavigate();
   const [localSelectedRecordId, setLocalSelectedRecordId] = useState('');
   const [localYeniParca, setLocalYeniParca] = useState({ partName: '', quantity: 1 });
   const [localIslemEkleme, setLocalIslemEkleme] = useState({ islemBitisTarihi: '', yapanKisi: '', changedParts: [], serviceItems: [] });
   // yapan kişi fields: two fields (dropdown or free-text). consumers may provide 'people' via props or outlet
-  const peopleOptions = props.people ?? outlet.people ?? ['Ahmet', 'Mehmet', 'Ayşe', 'Fatma'];
+  const [peopleSuggestions, setPeopleSuggestions] = useState([]);
+  useEffect(() => {
+    const key = 'ts_yapanKisi_suggestions';
+    let mounted = true;
+    // if parent provided people, prefer that
+    const provided = props.people ?? outlet.people;
+    if (Array.isArray(provided) && provided.length > 0) { setPeopleSuggestions(provided); return; }
+    (async () => {
+      try {
+        const res = await fetch(`/api/settings/suggestions/${encodeURIComponent(key)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (!mounted) return;
+          setPeopleSuggestions((data || []).map(d => d.value));
+          return;
+        }
+      } catch (e) { }
+
+      try {
+        const stored = JSON.parse(localStorage.getItem(key) || 'null');
+        if (Array.isArray(stored) && stored.length > 0) { if (mounted) setPeopleSuggestions(stored.map(s => (typeof s === 'string' ? s : (s.value || '')))); return; }
+      } catch (e) { }
+
+      const defaults = ['Ahmet','Mehmet','Ayşe','Fatma'];
+      try { localStorage.setItem(key, JSON.stringify(defaults)); } catch (e) { }
+      if (mounted) setPeopleSuggestions(defaults);
+    })();
+    return () => { mounted = false; };
+  }, [props.people, outlet.people]);
+  const peopleOptions = props.people ?? outlet.people ?? peopleSuggestions;
   const [yapan1, setYapan1] = useState('');
   const [yapan1Other, setYapan1Other] = useState('');
   const [yapan2, setYapan2] = useState('');
@@ -17,6 +48,19 @@ export default function IslemEkle(props) {
   const [photoFiles, setPhotoFiles] = useState([]);
   const [photoError, setPhotoError] = useState('');
   const [showQrModal, setShowQrModal] = useState(false);
+  
+  // Kayıt notları için state
+  const [recordNotes, setRecordNotes] = useState('');
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [savingNotes, setSavingNotes] = useState(false);
+
+  // Template save/load modal state
+  const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [showLoadTemplateModal, setShowLoadTemplateModal] = useState(false);
+  const [templates, setTemplates] = useState([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
 
   const selectedRecordId = props.selectedRecordId ?? localSelectedRecordId;
   const setSelectedRecordId = props.setSelectedRecordId ?? setLocalSelectedRecordId;
@@ -66,14 +110,8 @@ export default function IslemEkle(props) {
   const [showHizmetSuggestions, setShowHizmetSuggestions] = useState(false);
   const hizmetRef = useRef(null);
 
-  useEffect(() => {
-    const onDocClick = (e) => {
-      if (!hizmetRef.current) return;
-      if (!hizmetRef.current.contains(e.target)) setShowHizmetSuggestions(false);
-    };
-    document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
-  }, []);
+  // Close hizmet suggestions when clicking outside
+  useOutsideClick(hizmetRef, () => setShowHizmetSuggestions(false));
 
   // Define local handlers for hizmetEkle/hizmetSil and prefer props if provided
   const localHizmetEkle = () => {
@@ -212,8 +250,17 @@ export default function IslemEkle(props) {
       setExistingOpsError('');
       setRecordPhotos([]);
       setRecordPhotosError('');
+      setRecordNotes('');
+      setEditingNotes(false);
       return;
     }
+    
+    // Load record notes
+    const selectedRec = servisKayitlari.find((r) => `${r.id}` === `${selectedRecordId}`);
+    if (selectedRec) {
+      setRecordNotes(selectedRec.notlar || '');
+    }
+    
     setExistingOpsLoading(true);
     setExistingOpsError('');
     serviceApi.getServiceOperations(selectedRecordId)
@@ -228,7 +275,7 @@ export default function IslemEkle(props) {
       .catch((err) => { if (!mounted) return; console.error('Could not load record photos', err); setRecordPhotosError(err?.message || 'Fotoğraflar yüklenemedi'); setRecordPhotos([]); })
       .finally(() => { if (!mounted) setRecordPhotosLoading(false); else setRecordPhotosLoading(false); });
     return () => { mounted = false; };
-  }, [selectedRecordId]);
+  }, [selectedRecordId, servisKayitlari]);
 
   // Auto-refresh photos every 3 seconds when a record is selected (so mobile uploads appear instantly on PC)
   React.useEffect(() => {
@@ -265,6 +312,40 @@ export default function IslemEkle(props) {
     };
   }, [selectedRecordId, outlet]);
 
+  // helper to load (apply) a template into the current operation state
+  const loadTemplate = (t) => {
+    try {
+      const partsJson = (t.changedPartsJson ?? t.ChangedPartsJson) || '[]';
+      const itemsJson = (t.serviceItemsJson ?? t.ServiceItemsJson) || '[]';
+      const parts = JSON.parse(partsJson);
+      const items = JSON.parse(itemsJson);
+
+      const normalizedParts = (parts || []).map((p, idx) => ({
+        partName: p?.partName ?? p?.PartName ?? p?.partname ?? p?.Name ?? p?.name ?? '',
+        quantity: Number(p?.quantity ?? p?.Quantity ?? p?.qty ?? 1) || 1,
+        productId: p?.productId ?? p?.ProductId ?? p?.product_id ?? p?.productId,
+        ...(p?.listPrice !== undefined || p?.ListPrice !== undefined ? { listPrice: p?.listPrice ?? p?.ListPrice } : {}),
+      }));
+
+      const normalizedItems = (items || []).map((s, idx) => ({
+        id: s?.id ?? s?.Id ?? Date.now() + idx,
+        name: s?.name ?? s?.Name ?? '',
+        price: Number(s?.price ?? s?.Price ?? 0) || 0,
+      }));
+
+      setIslemEkleme(prev => ({
+        ...prev,
+        changedParts: normalizedParts,
+        serviceItems: normalizedItems,
+      }));
+      try { outlet.setNotification?.({ type: 'success', message: 'Şablon yüklendi.' }); } catch (e) { /* ignore */ }
+      setShowLoadTemplateModal(false);
+    } catch (err) {
+      console.error('Could not load template', err);
+      try { outlet.setNotification?.({ type: 'error', message: 'Şablon yüklenemedi.' }); } catch (e) { /* ignore */ }
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="bg-white shadow-xl rounded-2xl p-6">
@@ -277,6 +358,88 @@ export default function IslemEkle(props) {
         {/* Existing operations preview */}
         {selectedRecordId && (
           <div className="mt-4">
+            {/* Kayıt Notları */}
+            <div className="mb-4 p-4 bg-amber-50 border-l-4 border-amber-400 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-sm font-bold text-amber-900">📝 Kayıt Notları</div>
+                {!editingNotes && (
+                  <button 
+                    className="btn btn-xs btn-ghost text-amber-700 hover:bg-amber-100"
+                    onClick={() => setEditingNotes(true)}
+                  >
+                    Düzenle
+                  </button>
+                )}
+              </div>
+              {editingNotes ? (
+                <div>
+                  <textarea 
+                    className="textarea textarea-bordered w-full min-h-[100px] bg-white"
+                    value={recordNotes}
+                    onChange={(e) => setRecordNotes(e.target.value)}
+                    placeholder="Kayıt notları..."
+                  />
+                  <div className="flex gap-2 mt-2">
+                    <button 
+                      className="btn btn-sm btn-success"
+                      disabled={savingNotes}
+                      onClick={async () => {
+                        if (!selectedRecordId) return;
+                        try {
+                          setSavingNotes(true);
+                          const selectedRec = servisKayitlari.find((r) => `${r.id}` === `${selectedRecordId}`);
+                          if (selectedRec) {
+                            await serviceApi.updateServiceRecord(selectedRecordId, { 
+                              ...selectedRec, 
+                              notlar: recordNotes 
+                            });
+                            // Refresh the list
+                            try {
+                              await outlet.reloadServisKayitlari?.();
+                            } catch (e) {
+                              // ignore
+                            }
+                            setEditingNotes(false);
+                            try { 
+                              outlet.setNotification?.({ type: 'success', message: 'Notlar kaydedildi' }); 
+                            } catch (e) { 
+                              alert('Notlar kaydedildi'); 
+                            }
+                          }
+                        } catch (err) {
+                          console.error('Could not save notes', err);
+                          try { 
+                            outlet.setNotification?.({ type: 'error', message: 'Notlar kaydedilemedi: ' + (err?.message || 'Hata') }); 
+                          } catch (e) { 
+                            alert('Notlar kaydedilemedi'); 
+                          }
+                        } finally {
+                          setSavingNotes(false);
+                        }
+                      }}
+                    >
+                      {savingNotes ? 'Kaydediliyor...' : 'Kaydet'}
+                    </button>
+                    <button 
+                      className="btn btn-sm btn-ghost"
+                      disabled={savingNotes}
+                      onClick={() => {
+                        const selectedRec = servisKayitlari.find((r) => `${r.id}` === `${selectedRecordId}`);
+                        setRecordNotes(selectedRec?.notlar || '');
+                        setEditingNotes(false);
+                      }}
+                    >
+                      İptal
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-sm text-slate-700 whitespace-pre-wrap">
+                  {recordNotes || 'Not eklenmemiş.'}
+                </div>
+              )}
+            </div>
+            
             <div className="text-sm font-semibold mb-2">Önceki İşlemler</div>
             {existingOpsLoading && <div className="text-sm text-slate-500">İşlemler yükleniyor...</div>}
             {existingOpsError && <div className="text-sm text-rose-600">{existingOpsError}</div>}
@@ -586,11 +749,16 @@ export default function IslemEkle(props) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
+      <div className="grid grid-cols-1 gap-6 mt-4">
         <div className="bg-white shadow-xl rounded-2xl p-6">
-          <h4 className="text-md font-semibold text-slate-800 mb-3">Yapan Kişiler</h4>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-md font-semibold text-slate-800">Yapan Kişiler</h4>
+              <div>
+                <button className="btn btn-ghost btn-sm" onClick={() => navigate('/settings/suggestions#yapan')}>Yönet</button>
+              </div>
+            </div>
           <p className="text-xs text-slate-500 mb-3">İşlemi gerçekleştiren kişileri seçin. İsterseniz "Diğer" seçeneği ile serbest metin girebilirsiniz.</p>
-          <div className="grid grid-cols-1 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label className="label"><span className="label-text">Yapan Kişi 1</span></label>
               <div className="flex gap-2">
@@ -672,9 +840,167 @@ export default function IslemEkle(props) {
         </div>
       </div>
 
-      <div className="flex justify-end gap-3 mt-4">
-        <button onClick={async () => { if (selectedRecordId) await createOperation(selectedRecordId); }} className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold shadow-md hover:opacity-90 transition" disabled={!selectedRecordId}>Kaydet (İşlem Ekle)</button>
+      <div className="flex justify-between items-center gap-3 mt-6">
+        <button 
+          onClick={async () => {
+            if (!selectedRecordId || !selectedRecord) return;
+            setTemplatesLoading(true);
+            try {
+              const productSku = selectedRecord.urunModeli;
+              const tmps = await serviceApi.getServiceTemplates(productSku);
+              setTemplates(tmps || []);
+              setShowLoadTemplateModal(true);
+            } catch (err) {
+              console.error('Could not load templates', err);
+              try { outlet.setNotification?.({ type: 'error', message: 'Şablonlar yüklenemedi.' }); } catch (e) { /* ignore */ }
+            } finally {
+              setTemplatesLoading(false);
+            }
+          }}
+          className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold shadow-md hover:opacity-90 transition" 
+          disabled={!selectedRecordId || templatesLoading}
+        >
+          {templatesLoading ? 'Yükleniyor...' : 'Şablonlar'}
+        </button>
+        <div className="flex gap-3">
+          <button 
+            onClick={() => {
+              if (!selectedRecordId) return;
+              if (islemEkleme.changedParts.length === 0 && islemEkleme.serviceItems.length === 0) {
+                try { outlet.setNotification?.({ type: 'warning', message: 'Kaydedilecek parça veya hizmet yok.' }); } catch (e) { /* ignore */ }
+                return;
+              }
+              setShowSaveTemplateModal(true);
+            }}
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold shadow-md hover:opacity-90 transition" 
+            disabled={!selectedRecordId}
+          >
+            Şablon Olarak Kaydet
+          </button>
+          <button 
+            onClick={async () => { if (selectedRecordId) await createOperation(selectedRecordId); }} 
+            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold shadow-md hover:opacity-90 transition" 
+            disabled={!selectedRecordId}
+          >
+            Kaydet (İşlem Ekle)
+          </button>
+        </div>
       </div>
+
+      {/* Save Template Modal */}
+      {showSaveTemplateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full">
+            <h3 className="text-xl font-bold text-slate-800 mb-4">Şablon Olarak Kaydet</h3>
+            <p className="text-sm text-slate-600 mb-4">
+              Mevcut parça ve hizmetler bu ürüne özel bir şablon olarak kaydedilecek.
+            </p>
+            <div className="mb-4">
+              <label className="label">
+                <span className="label-text font-semibold">Şablon Adı</span>
+              </label>
+              <input 
+                type="text" 
+                className="input input-bordered w-full" 
+                placeholder="Örn: Standart Bakım, Yağ Değişimi" 
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button 
+                onClick={() => { setShowSaveTemplateModal(false); setTemplateName(''); }}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 transition"
+              >
+                İptal
+              </button>
+              <button 
+                onClick={async () => {
+                  if (!templateName.trim()) {
+                    try { outlet.setNotification?.({ type: 'warning', message: 'Şablon adı girin.' }); } catch (e) { /* ignore */ }
+                    return;
+                  }
+                  setSavingTemplate(true);
+                  try {
+                    const productSku = selectedRecord?.urunModeli || '';
+                    const payload = {
+                      name: templateName.trim(),
+                      productSku,
+                      changedParts: (islemEkleme.changedParts || []).map(p => ({ partName: p.partName, quantity: p.quantity })),
+                      serviceItems: (islemEkleme.serviceItems || []).map(s => ({ name: s.name })),
+                      yapanKisi: null,
+                    };
+                    await serviceApi.createServiceTemplate(payload);
+                    try { outlet.setNotification?.({ type: 'success', message: 'Şablon kaydedildi.' }); } catch (e) { /* ignore */ }
+                    setShowSaveTemplateModal(false);
+                    setTemplateName('');
+                  } catch (err) {
+                    console.error('Could not save template', err);
+                    try { outlet.setNotification?.({ type: 'error', message: 'Şablon kaydedilemedi: ' + (err?.message || 'Hata') }); } catch (e) { /* ignore */ }
+                  } finally {
+                    setSavingTemplate(false);
+                  }
+                }}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold shadow-md hover:opacity-90 transition"
+                disabled={savingTemplate}
+              >
+                {savingTemplate ? 'Kaydediliyor...' : 'Kaydet'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Load Template Modal */}
+      {showLoadTemplateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-2xl w-full">
+            <h3 className="text-xl font-bold text-slate-800 mb-4">Şablon Yükle</h3>
+            <p className="text-sm text-slate-600 mb-4">
+              Ürün SKU: <span className="font-semibold">{selectedRecord?.urunModeli || '-'}</span> için kayıtlı şablonlar.
+            </p>
+            <div className="max-h-96 overflow-auto space-y-3">
+              {templates.length === 0 && (
+                <div className="text-sm text-slate-500 text-center py-4">Bu ürün için kayıtlı şablon yok.</div>
+              )}
+              {templates.map(t => (
+                <div key={t.id} onClick={() => loadTemplate(t)} role="button" tabIndex={0} className="border rounded-lg p-4 hover:bg-slate-50 transition cursor-pointer">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="font-semibold text-slate-800">{t.name}</div>
+                    <div className="text-xs text-slate-500">{new Date(t.createdAt).toLocaleDateString('tr-TR')}</div>
+                  </div>
+                  <div className="text-sm text-slate-600 mb-3">
+                    <div>Parçalar: {JSON.parse((t.changedPartsJson ?? t.ChangedPartsJson) || '[]').length}</div>
+                    <div>Hizmetler: {JSON.parse((t.serviceItemsJson ?? t.ServiceItemsJson) || '[]').length}</div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); loadTemplate(t); }}
+                      className="btn btn-sm btn-primary"
+                    >
+                      Yükle
+                    </button>
+                    <button 
+                      onClick={async (e) => { e.stopPropagation(); if (!window.confirm('Bu şablonu silmek istediğinizden emin misiniz?')) return; try { await serviceApi.deleteServiceTemplate(t.id); setTemplates(prev => prev.filter(x => x.id !== t.id)); try { outlet.setNotification?.({ type: 'success', message: 'Şablon silindi.' }); } catch (e) {} } catch (err) { console.error('Could not delete template', err); try { outlet.setNotification?.({ type: 'error', message: 'Şablon silinemedi.' }); } catch (e) {} } }}
+                      className="btn btn-sm btn-error"
+                    >
+                      Sil
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end mt-4">
+              <button 
+                onClick={() => setShowLoadTemplateModal(false)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 transition"
+              >
+                Kapat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* QR Code Modal */}
       {showQrModal && (

@@ -65,9 +65,15 @@ namespace KetenErp.Api.Controllers
 
             foreach (var it in req.Items)
             {
-                // load record and operations
+                // load record and operations with all related entities
                 var rec = await _recordRepo.GetByIdAsync(it.Id);
-                var ops = await _opRepo.GetAllForRecordAsync(it.Id);
+                
+                // Load operations with full navigation properties (ChangedParts and ServiceItems)
+                var ops = await _db.ServiceOperations
+                    .Where(o => o.ServiceRecordId == it.Id)
+                    .Include(o => o.ChangedParts)
+                    .Include(o => o.ServiceItems)
+                    .ToListAsync();
 
                 // İlk kayıttaki müşteri adını kullan
                 if (tumUrunler.Count == 0 && !string.IsNullOrEmpty(rec?.FirmaIsmi))
@@ -92,7 +98,7 @@ namespace KetenErp.Api.Controllers
 
                 foreach (var op in ops)
                 {
-                    if (op.ChangedParts != null)
+                    if (op.ChangedParts != null && op.ChangedParts.Any())
                     {
                         foreach (var p in op.ChangedParts)
                         {
@@ -102,28 +108,43 @@ namespace KetenErp.Api.Controllers
                                 decimal list = 0m;
                                 decimal disc = 0m;
                                 decimal discounted = 0m;
+                                decimal qty = p.Quantity;
+                                
                                 // Use nullable ListPrice/DiscountPercent if provided; otherwise fall back to Price and 0
-                                list = p.ListPrice.HasValue && p.ListPrice.Value > 0m ? p.ListPrice.Value : p.Price;
-                                disc = p.DiscountPercent ?? 0m;
-                                discounted = list * (1 - (disc / 100m));
-                                    if (list > 0m)
+                                // Check if ListPrice is set and greater than 0
+                                if (p.ListPrice.HasValue && p.ListPrice.Value > 0m)
+                                {
+                                    list = p.ListPrice.Value;
+                                    disc = p.DiscountPercent ?? 0m;
+                                    discounted = list * (1 - (disc / 100m));
+                                    
+                                    // Show with discount details if discount applied
+                                    if (disc > 0m)
                                     {
-                                        urun.Islemler.Add($"Parça: {p.PartName} x{p.Quantity} : {discounted:C} (Liste: {list:C}, İndirim: {disc}%)");
-                                        urunTotal += discounted * p.Quantity;
+                                        urun.Islemler.Add($"Parça: {p.PartName} x{qty} : {(discounted * qty):C} (Liste: {list:C}, İndirim: %{disc})");
                                     }
                                     else
                                     {
-                                        urun.Islemler.Add($"Parça: {p.PartName} x{p.Quantity} : {p.Price:C}");
-                                        urunTotal += p.Price * p.Quantity;
+                                        urun.Islemler.Add($"Parça: {p.PartName} x{qty} : {(discounted * qty):C}");
                                     }
+                                    urunTotal += discounted * qty;
+                                }
+                                else
+                                {
+                                    // Fall back to Price if ListPrice not set
+                                    urun.Islemler.Add($"Parça: {p.PartName} x{qty} : {(p.Price * qty):C}");
+                                    urunTotal += p.Price * qty;
+                                }
                             }
-                            catch
+                            catch (Exception ex)
                             {
-                                urun.Islemler.Add($"Parça: {p.PartName} x{p.Quantity} : {p.Price:C}");
+                                Console.WriteLine($"Error processing changed part: {ex.Message}");
+                                urun.Islemler.Add($"Parça: {p.PartName} x{p.Quantity} : {(p.Price * p.Quantity):C}");
+                                urunTotal += p.Price * p.Quantity;
                             }
                         }
                     }
-                    if (op.ServiceItems != null)
+                    if (op.ServiceItems != null && op.ServiceItems.Any())
                     {
                         foreach (var s in op.ServiceItems)
                         {
@@ -132,23 +153,37 @@ namespace KetenErp.Api.Controllers
                                 decimal list = 0m;
                                 decimal disc = 0m;
                                 decimal discounted = 0m;
-                                list = s.ListPrice.HasValue && s.ListPrice.Value > 0m ? s.ListPrice.Value : s.Price;
-                                disc = s.DiscountPercent ?? 0m;
-                                discounted = list * (1 - (disc / 100m));
-                                if (list > 0m)
+                                
+                                // Check if ListPrice is set and greater than 0
+                                if (s.ListPrice.HasValue && s.ListPrice.Value > 0m)
                                 {
-                                    urun.Islemler.Add($"Hizmet: {s.Name} : {discounted:C} (Liste: {list:C}, İndirim: {disc}%)");
+                                    list = s.ListPrice.Value;
+                                    disc = s.DiscountPercent ?? 0m;
+                                    discounted = list * (1 - (disc / 100m));
+                                    
+                                    // Show with discount details if discount applied
+                                    if (disc > 0m)
+                                    {
+                                        urun.Islemler.Add($"Hizmet: {s.Name} : {discounted:C} (Liste: {list:C}, İndirim: %{disc})");
+                                    }
+                                    else
+                                    {
+                                        urun.Islemler.Add($"Hizmet: {s.Name} : {discounted:C}");
+                                    }
                                     urunTotal += discounted;
                                 }
                                 else
                                 {
+                                    // Fall back to Price if ListPrice not set
                                     urun.Islemler.Add($"Hizmet: {s.Name} : {s.Price:C}");
                                     urunTotal += s.Price;
                                 }
                             }
-                            catch
+                            catch (Exception ex)
                             {
+                                Console.WriteLine($"Error processing service item: {ex.Message}");
                                 urun.Islemler.Add($"Hizmet: {s.Name} : {s.Price:C}");
+                                urunTotal += s.Price;
                             }
                         }
                     }

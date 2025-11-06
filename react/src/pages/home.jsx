@@ -62,6 +62,24 @@ export default function ERPDashboard() {
               )
             }
 
+            // Make the Ayarlar card link to the Settings page
+            if (module.title === 'Ayarlar') {
+              return (
+                <Link key={module.id} to="/settings" className="block">
+                  {card}
+                </Link>
+              )
+            }
+
+            // Make the Müşteri Yönetimi card link to the customers page
+            if (module.title === 'Müşteri Yönetimi') {
+              return (
+                <Link key={module.id} to="/customers" className="block">
+                  {card}
+                </Link>
+              )
+            }
+
             // Make the Stok Durumu card link to the Stock page
             if (module.title === 'Stok Durumu') {
               return (

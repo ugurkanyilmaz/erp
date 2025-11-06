@@ -20,6 +20,8 @@ function normalizeSparePart(s) {
     sku: s.sku ?? s.SKU ?? '',
     parcaNo: s.parcaNo ?? s.PartNumber ?? s.partNumber ?? '',
     title: s.title ?? s.Title ?? '',
+    // bagliUrun: user-facing label for an attached product (SKU or title).
+    bagliUrun: s.bagliUrun ?? (s.product?.sku ?? s.Product?.SKU) ?? (s.product?.title ?? s.Product?.Title) ?? '',
     productId: s.productId ?? s.ProductId ?? s.productId ?? null,
     product: s.product ?? s.Product ?? null,
     stok: s.stock ?? s.Stock ?? 0,

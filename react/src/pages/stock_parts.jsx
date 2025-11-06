@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import useOutsideClick from '../hooks/useOutsideClick';
 import stockApi from '../hooks/stockApi';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Link2, Plus, Search, Edit2, Trash2, AlertCircle, FileText, ChevronLeft, TrendingDown, TrendingUp } from 'lucide-react';
@@ -10,6 +11,7 @@ export default function StockParts() {
   const [urunler, setUrunler] = useState([]);
   const [partForm, setPartForm] = useState({ id: null, sku: '', parcaNo: '', title: '', bagliUrun: '', productId: null, stok: '', minStok: '' });
   const [urunDropdownOpen, setUrunDropdownOpen] = useState(false);
+  const urunDropdownRef = useRef(null);
 
   const q = (searchTerm || '').toLowerCase();
   const filteredYedekParcalar = yedekParcalar.filter(p => 
@@ -42,6 +44,9 @@ export default function StockParts() {
     load();
     return () => { mounted = false; };
   }, []);
+
+  // close product dropdown when clicking outside
+  useOutsideClick(urunDropdownRef, () => setUrunDropdownOpen(false));
 
   const navigate = useNavigate();
 
@@ -92,7 +97,7 @@ export default function StockParts() {
       <main className="max-w-7xl mx-auto px-6 py-8">
         <div className="space-y-6">
           <div className="flex justify-between items-center">
-            <div className="relative">
+                <div className="relative" ref={urunDropdownRef}>
               <Search className="absolute left-3 top-3 text-slate-400" size={18} />
               <input 
                 type="text" 

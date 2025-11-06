@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Header from '../components/Header';
+import ServiceRecordDetailsModal from '../components/ServiceRecordDetailsModal';
 import { CheckCircle } from 'lucide-react';
 import serviceApi from '../hooks/serviceApi';
 
@@ -7,18 +8,30 @@ export default function CompletedServices() {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
+  const [detailsVisible, setDetailsVisible] = useState(false);
+  const [detailsData, setDetailsData] = useState(null);
 
   useEffect(() => { load(); }, []);
 
   const load = async () => {
     setLoading(true);
     try {
-      const all = await serviceApi.getServiceRecords();
-      // filter completed
-      const done = (all || []).filter(r => (r.durum || '').toLowerCase().includes('tamam'));
-      setRecords(done);
+      // Load archived/completed records from the new endpoint
+      const all = await serviceApi.getCompletedServiceRecords();
+      setRecords(all || []);
     } catch (err) {
       console.error('Could not load completed records', err);
+    } finally { setLoading(false); }
+  };
+
+  const openDetails = async (archiveId) => {
+    try {
+      setLoading(true);
+      const d = await serviceApi.getCompletedServiceRecordDetails(archiveId);
+      setDetailsData(d || null);
+      setDetailsVisible(true);
+    } catch (err) {
+      console.error('Could not load details', err);
     } finally { setLoading(false); }
   };
 
@@ -52,19 +65,26 @@ export default function CompletedServices() {
                     <th>Servis Takip No</th>
                     <th>Firma</th>
                     <th>Tamamlanma</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {records.filter(r => {
                       if (!query) return true;
                       const q = query.toLowerCase();
-                      return (r.belgeNo || '').toLowerCase().includes(q) || ((r.servisTakipNo || r.seriNo) || '').toLowerCase().includes(q) || (r.firmaIsmi || '').toLowerCase().includes(q);
+                      const belge = (r.belgeNo || r.BelgeNo || '').toString();
+                      const takip = (r.servisTakipNo || r.ServisTakipNo || r.seriNo || r.SeriNo || '').toString();
+                      const firma = (r.firmaIsmi || r.FirmaIsmi || '').toString();
+                      return belge.toLowerCase().includes(q) || takip.toLowerCase().includes(q) || firma.toLowerCase().includes(q);
                   }).map(r => (
                     <tr key={r.id}>
-                      <td>{r.belgeNo || '-'}</td>
-                      <td>{r.servisTakipNo || r.seriNo || '-'}</td>
-                      <td>{r.firmaIsmi || '-'}</td>
-                      <td>{formatDate(r.gelisTarihi || r.updatedAt || r.tarih)}</td>
+                      <td>{(r.belgeNo || r.BelgeNo) || '-'}</td>
+                      <td>{(r.servisTakipNo || r.ServisTakipNo || r.seriNo || r.SeriNo) || '-'}</td>
+                      <td>{(r.firmaIsmi || r.FirmaIsmi) || '-'}</td>
+                      <td>{formatDate(r.completedAt || r.CompletedAt || r.gelisTarihi)}</td>
+                      <td>
+                        <button className="btn btn-xs btn-outline" onClick={() => openDetails(r.id)}>Detay</button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -73,6 +93,7 @@ export default function CompletedServices() {
           )}
         </div>
       </main>
+      <ServiceRecordDetailsModal visible={detailsVisible} onClose={() => setDetailsVisible(false)} data={detailsData} />
     </div>
   );
 }

@@ -1,11 +1,15 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Home from './pages/home';
+import MusteriYonetimi from './pages/musteri_yonetimi';
 import TeknikServis from './pages/teknik_servis';
 import TeknikServisList from './pages/teknik_servis_list';
 import TeknikServisNew from './pages/teknik_servis_new';
 import TeknikServisMuhasebe from './pages/teknik_servis_muhasebe';
 import TeknikServisIslemEkle from './pages/teknik_servis_islem_ekle';
 import TeknikServisFoto from './pages/teknik_servis_foto';
+import SettingsSuggestions from './pages/settings_suggestions';
+import SettingsLanding from './pages/settings';
+import SettingsEmail from './pages/settings_email';
 import StockProducts from './pages/stock_products';
 import StockParts from './pages/stock_parts';
 import ArchivePage from './pages/archive';
@@ -32,10 +36,14 @@ function App() {
             <Route path="/stock" element={<StockProducts />} />
             <Route path="/stock/products" element={<StockProducts />} />
             <Route path="/stock/parts" element={<StockParts />} />
+            <Route path="/settings" element={<SettingsLanding />} />
+            <Route path="/settings/suggestions" element={<SettingsSuggestions />} />
+            <Route path="/settings/email" element={<SettingsEmail />} />
             <Route path="/archive" element={<ArchivePage />} />
             <Route path="/archive/sent-quotes" element={<SentQuotes />} />
             <Route path="/archive/invoices" element={<Invoices />} />
             <Route path="/archive/completed-services" element={<CompletedServices />} />
+            <Route path="/customers" element={<MusteriYonetimi />} />
           </Routes>
         </main>
     </BrowserRouter>
