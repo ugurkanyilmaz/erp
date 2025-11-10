@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FileText, Mail, Clock, User } from 'lucide-react';
 import Header from '../components/Header';
 import axios from 'axios';
+import { buildApiUrl } from '../config/api';
 
 export default function SentQuotesPage() {
   const [sentQuotes, setSentQuotes] = useState([]);
@@ -19,7 +20,7 @@ export default function SentQuotesPage() {
     setError('');
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get('http://localhost:5019/api/sentquotes', {
+      const res = await axios.get(buildApiUrl('sentquotes'), {
         headers: { Authorization: `Bearer ${token}` }
       });
       setSentQuotes(res.data || []);
@@ -142,7 +143,7 @@ export default function SentQuotesPage() {
                               <button
                                 className="btn btn-xs btn-outline"
                                 onClick={() => {
-                                  const url = `http://localhost:5019/api/servicerecords/bulkquote/exports/${encodeURIComponent(quote.pdfFileName)}`;
+                                  const url = buildApiUrl(`servicerecords/bulkquote/exports/${encodeURIComponent(quote.pdfFileName)}`);
                                   // Open in new tab/window; server will serve inline PDF
                                   window.open(url, '_blank');
                                 }}

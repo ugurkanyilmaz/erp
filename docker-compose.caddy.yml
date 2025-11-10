@@ -1,0 +1,41 @@
+# Docker Compose with Caddy Server for SSL
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.caddy.yml up -d
+
+version: '3.8'
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: ketenerp-caddy
+    restart: always
+    ports:
+      - "8080:80"      # HTTP on port 8080 instead of 80
+      - "443:443"
+      - "443:443/udp"  # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+      - caddy_logs:/var/log/caddy
+    networks:
+      - ketenerp-network
+    depends_on:
+      - api
+      - frontend
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+      - EMAIL=${CADDY_EMAIL:-admin@localhost}
+
+  # Override frontend - no need to expose port 80 directly
+  frontend:
+    ports: []
+    expose:
+      - "80"
+
+volumes:
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
+  caddy_logs:
+    driver: local

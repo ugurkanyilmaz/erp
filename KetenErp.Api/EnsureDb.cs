@@ -20,7 +20,7 @@ namespace KetenErp.Api
             var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
             var db = services.GetRequiredService<KetenErpDbContext>();
 
-            // Try to apply migrations if available, otherwise fall back to EnsureCreated.
+            // Try to apply migrations if available
             var migrations = db.Database.GetMigrations();
             if (migrations != null && migrations.Any())
             {
@@ -31,376 +31,320 @@ namespace KetenErp.Api
                 db.Database.EnsureCreated();
             }
 
-            // If the database file existed previously but is missing Identity tables (partial DB),
-            // EnsureCreated won't add missing tables. Do a quick probe and recreate DB if necessary
-            // to ensure Identity tables are present for development environments.
-            var needsRecreate = false;
+            // Verify schema completeness
             try
             {
-                // Try reading from the Roles set; this will throw if the table doesn't exist
-                await db.Roles.AnyAsync();
-            }
-            catch
-            {
-                needsRecreate = true;
-            }
+                var connCheck = db.Database.GetDbConnection();
+                if (connCheck.State != System.Data.ConnectionState.Open)
+                    connCheck.Open();
 
-            if (needsRecreate)
-            {
-                Console.WriteLine("Recreating database because required Identity tables were missing.");
-                db.Database.EnsureDeleted();
-                db.Database.EnsureCreated();
-            }
+                var expectedTables = new[]
+                {
+                    "aspnetusers", "aspnetroles", "products", "spareparts", "servicerecords",
+                    "serviceoperations", "changedparts", "serviceitems", "servicerecordphotos",
+                    "sentquotes", "completedservicerecords", "servicetemplates",
+                    "suggestions", "emailaccounts"
+                };
 
-            // Additional safety: verify that all expected tables for current model exist.
-            try
-            {
-                using var connCheck = db.Database.GetDbConnection();
-                connCheck.Open();
-                var expectedTables = new[] { "AspNetUsers", "AspNetRoles", "Products", "SpareParts", "ServiceRecords", "ServiceOperations", "ChangedParts", "ServiceItems", "ServiceRecordPhotos", "SentQuotes", "CompletedServiceRecords", "ServiceTemplates", "Suggestions", "EmailAccounts" };
                 var missing = new System.Collections.Generic.List<string>();
                 foreach (var tname in expectedTables)
                 {
                     using var cmd = connCheck.CreateCommand();
-                    cmd.CommandText = $"SELECT name FROM sqlite_master WHERE type='table' AND name='{tname}';";
+                    cmd.CommandText = $"SELECT to_regclass('{tname}');";
                     var r = cmd.ExecuteScalar();
-                    if (r == null)
-                    {
+                    if (r == DBNull.Value || r == null)
                         missing.Add(tname);
-                    }
                 }
 
                 if (missing.Count > 0)
                 {
-                    Console.WriteLine($"Detected missing tables: {string.Join(',', missing)}; recreating database to ensure schema matches EF model.");
-                    db.Database.EnsureDeleted();
+                    Console.WriteLine($"Missing tables detected: {string.Join(',', missing)}; running EnsureCreated to fix.");
                     db.Database.EnsureCreated();
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Could not perform schema completeness check: {ex.Message}");
+                Console.WriteLine($"Schema completeness check failed: {ex.Message}");
             }
 
-            // Ensure Products table has MinStock and SKU columns
+            // Ensure Products.MinStock and Products.SKU columns exist
             try
             {
-                using var conn = db.Database.GetDbConnection();
-                conn.Open();
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = "PRAGMA table_info('Products');";
-                using var rdr = cmd.ExecuteReader();
-                var found = false;
-                while (rdr.Read())
+                var conn = db.Database.GetDbConnection();
+                if (conn.State != System.Data.ConnectionState.Open)
+                    conn.Open();
+
+                bool hasMinStock = false;
+                bool hasSku = false;
+
+                using (var cmd = conn.CreateCommand())
                 {
-                    var name = rdr[1]?.ToString();
-                    if (string.Equals(name, "MinStock", StringComparison.OrdinalIgnoreCase))
+                    cmd.CommandText = "SELECT column_name FROM information_schema.columns WHERE table_name='products';";
+                    using var rdr = cmd.ExecuteReader();
+                    while (rdr.Read())
                     {
-                        found = true;
-                        break;
+                        var name = rdr.GetString(0);
+                        if (name.Equals("minstock", StringComparison.OrdinalIgnoreCase))
+                            hasMinStock = true;
+                        if (name.Equals("sku", StringComparison.OrdinalIgnoreCase))
+                            hasSku = true;
                     }
                 }
-                rdr.Close();
-                if (!found)
+
+                if (!hasMinStock)
                 {
                     using var alter = conn.CreateCommand();
-                    alter.CommandText = "ALTER TABLE Products ADD COLUMN MinStock INTEGER NOT NULL DEFAULT 0;";
+                    alter.CommandText = "ALTER TABLE products ADD COLUMN minstock INTEGER NOT NULL DEFAULT 0;";
                     alter.ExecuteNonQuery();
                     Console.WriteLine("Added MinStock column to Products table.");
                 }
 
-                // Ensure SKU column
-                try
+                if (!hasSku)
                 {
-                    using var cmd2 = conn.CreateCommand();
-                    cmd2.CommandText = "PRAGMA table_info('Products');";
-                    using var rdr2 = cmd2.ExecuteReader();
-                    var hasSku = false;
-                    while (rdr2.Read())
-                    {
-                        var name = rdr2[1]?.ToString();
-                        if (string.Equals(name, "SKU", StringComparison.OrdinalIgnoreCase))
-                        {
-                            hasSku = true;
-                            break;
-                        }
-                    }
-                    rdr2.Close();
-                    if (!hasSku)
-                    {
-                        using var alter2 = conn.CreateCommand();
-                        alter2.CommandText = "ALTER TABLE Products ADD COLUMN SKU TEXT;";
-                        alter2.ExecuteNonQuery();
-                        Console.WriteLine("Added SKU column to Products table.");
-                        try
-                        {
-                            using var backfill = conn.CreateCommand();
-                            backfill.CommandText = "UPDATE Products SET SKU = substr(Description, instr(Description, ' | ')+3) WHERE (SKU IS NULL OR SKU = '') AND Description LIKE '% | %';";
-                            var updated = backfill.ExecuteNonQuery();
-                            if (updated > 0) Console.WriteLine($"Backfilled SKU for {updated} products from Description.");
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"Could not backfill SKU values: {ex.Message}");
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Could not ensure SKU column exists: {ex.Message}");
+                    using var alter2 = conn.CreateCommand();
+                    alter2.CommandText = "ALTER TABLE products ADD COLUMN sku TEXT;";
+                    alter2.ExecuteNonQuery();
+                    Console.WriteLine("Added SKU column to Products table.");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Could not ensure MinStock column exists: {ex.Message}");
+                Console.WriteLine($"Could not ensure MinStock/SKU columns: {ex.Message}");
             }
 
-            // Ensure ServiceRecords table has Durum and Notlar columns
+            // Ensure ServiceRecords.Durum and Notlar
             try
             {
-                using var conn2 = db.Database.GetDbConnection();
-                conn2.Open();
-                using var cmdSr = conn2.CreateCommand();
-                cmdSr.CommandText = "PRAGMA table_info('ServiceRecords');";
-                using var rdrSr = cmdSr.ExecuteReader();
-                var foundDurum = false;
-                while (rdrSr.Read())
+                var conn2 = db.Database.GetDbConnection();
+                if (conn2.State != System.Data.ConnectionState.Open)
+                    conn2.Open();
+                    
+                bool hasDurum = false, hasNotlar = false;
+
+                using (var cmd = conn2.CreateCommand())
                 {
-                    var name = rdrSr[1]?.ToString();
-                    if (string.Equals(name, "Durum", StringComparison.OrdinalIgnoreCase))
+                    cmd.CommandText = "SELECT column_name FROM information_schema.columns WHERE table_name='servicerecords';";
+                    using var rdr = cmd.ExecuteReader();
+                    while (rdr.Read())
                     {
-                        foundDurum = true;
-                        break;
+                        var name = rdr.GetString(0);
+                        if (name.Equals("durum", StringComparison.OrdinalIgnoreCase)) hasDurum = true;
+                        if (name.Equals("notlar", StringComparison.OrdinalIgnoreCase)) hasNotlar = true;
                     }
                 }
-                rdrSr.Close();
-                if (!foundDurum)
+
+                if (!hasDurum)
                 {
-                    using var alterSr = conn2.CreateCommand();
-                    alterSr.CommandText = "ALTER TABLE ServiceRecords ADD COLUMN Durum TEXT NOT NULL DEFAULT 'Kayıt Açıldı';";
-                    alterSr.ExecuteNonQuery();
+                    using var alter = conn2.CreateCommand();
+                    alter.CommandText = "ALTER TABLE servicerecords ADD COLUMN durum TEXT NOT NULL DEFAULT 'Kayıt Açıldı';";
+                    alter.ExecuteNonQuery();
                     Console.WriteLine("Added Durum column to ServiceRecords table.");
-                    try
-                    {
-                        using var backfillSr = conn2.CreateCommand();
-                        backfillSr.CommandText = "UPDATE ServiceRecords SET Durum = 'Kayıt Açıldı' WHERE Durum IS NULL OR Durum = '';";
-                        var updated = backfillSr.ExecuteNonQuery();
-                        if (updated > 0) Console.WriteLine($"Backfilled Durum for {updated} service records.");
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Could not backfill Durum values: {ex.Message}");
-                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Could not ensure Durum column exists: {ex.Message}");
-            }
 
-            try
-            {
-                using var conn3 = db.Database.GetDbConnection();
-                conn3.Open();
-                using var cmdNot = conn3.CreateCommand();
-                cmdNot.CommandText = "PRAGMA table_info('ServiceRecords');";
-                using var rdrNot = cmdNot.ExecuteReader();
-                var foundNot = false;
-                while (rdrNot.Read())
+                if (!hasNotlar)
                 {
-                    var name = rdrNot[1]?.ToString();
-                    if (string.Equals(name, "Notlar", StringComparison.OrdinalIgnoreCase))
-                    {
-                        foundNot = true;
-                        break;
-                    }
-                }
-                rdrNot.Close();
-                if (!foundNot)
-                {
-                    using var alterNot = conn3.CreateCommand();
-                    alterNot.CommandText = "ALTER TABLE ServiceRecords ADD COLUMN Notlar TEXT;";
-                    alterNot.ExecuteNonQuery();
+                    using var alter2 = conn2.CreateCommand();
+                    alter2.CommandText = "ALTER TABLE servicerecords ADD COLUMN notlar TEXT;";
+                    alter2.ExecuteNonQuery();
                     Console.WriteLine("Added Notlar column to ServiceRecords table.");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Could not ensure Notlar column exists: {ex.Message}");
+                Console.WriteLine($"Could not ensure ServiceRecords columns: {ex.Message}");
             }
 
-            // Ensure CompletedServiceRecords table exists
+            // Ensure CompletedServiceRecords
             try
             {
-                using var conn = db.Database.GetDbConnection();
-                conn.Open();
+                var conn = db.Database.GetDbConnection();
+                if (conn.State != System.Data.ConnectionState.Open)
+                    conn.Open();
+                    
                 using var cmd = conn.CreateCommand();
-                cmd.CommandText = @"CREATE TABLE IF NOT EXISTS CompletedServiceRecords (
-            Id INTEGER PRIMARY KEY AUTOINCREMENT,
-            OriginalServiceRecordId INTEGER,
-            BelgeNo TEXT,
-            ServisTakipNo TEXT,
-            FirmaIsmi TEXT,
-            UrunModeli TEXT,
-            GelisTarihi TEXT,
-            CompletedAt TEXT NOT NULL,
-            SerializedRecordJson TEXT
-        );";
+                cmd.CommandText = @"
+                    CREATE TABLE IF NOT EXISTS completedservicerecords (
+                        id SERIAL PRIMARY KEY,
+                        originalservicerecordid INTEGER,
+                        belgeno TEXT,
+                        servistakipno TEXT,
+                        firmaismi TEXT,
+                        urunmodeli TEXT,
+                        gelistarihi TEXT,
+                        completedat TIMESTAMP NOT NULL,
+                        serializedrecordjson TEXT
+                    );";
                 cmd.ExecuteNonQuery();
                 Console.WriteLine("Ensured CompletedServiceRecords table exists.");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Could not ensure CompletedServiceRecords table exists: {ex.Message}");
+                Console.WriteLine($"Could not ensure CompletedServiceRecords table: {ex.Message}");
             }
 
-            // Ensure ServiceTemplates table exists
+            // ServiceTemplates
             try
             {
-                using var connTmp = db.Database.GetDbConnection();
-                connTmp.Open();
-                using var cmdTmp = connTmp.CreateCommand();
-                cmdTmp.CommandText = @"CREATE TABLE IF NOT EXISTS ServiceTemplates (
-            Id INTEGER PRIMARY KEY AUTOINCREMENT,
-            Name TEXT NOT NULL,
-            ProductSKU TEXT,
-            ChangedPartsJson TEXT,
-            ServiceItemsJson TEXT,
-            YapanKisi TEXT,
-            CreatedAt TEXT NOT NULL
-        );";
-                cmdTmp.ExecuteNonQuery();
+                var conn = db.Database.GetDbConnection();
+                if (conn.State != System.Data.ConnectionState.Open)
+                    conn.Open();
+                    
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = @"
+                    CREATE TABLE IF NOT EXISTS servicetemplates (
+                        id SERIAL PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        productsku TEXT,
+                        changedpartsjson TEXT,
+                        serviceitemsjson TEXT,
+                        yapankisi TEXT,
+                        createdat TIMESTAMP NOT NULL
+                    );";
+                cmd.ExecuteNonQuery();
                 Console.WriteLine("Ensured ServiceTemplates table exists.");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Could not ensure ServiceTemplates table exists: {ex.Message}");
+                Console.WriteLine($"Could not ensure ServiceTemplates: {ex.Message}");
             }
 
-            // Ensure SentQuotes table has SenderName column (added later) - if missing, ALTER TABLE ADD COLUMN
+            // SentQuotes.SenderName
             try
             {
-                using var connSq = db.Database.GetDbConnection();
-                connSq.Open();
-                using var cmdSq = connSq.CreateCommand();
-                cmdSq.CommandText = "PRAGMA table_info('SentQuotes');";
-                using var rdrSq = cmdSq.ExecuteReader();
-                var hasSenderName = false;
-                while (rdrSq.Read())
+                var conn = db.Database.GetDbConnection();
+                if (conn.State != System.Data.ConnectionState.Open)
+                    conn.Open();
+
+                bool hasSenderName = false;
+                using (var cmd = conn.CreateCommand())
                 {
-                    var name = rdrSq[1]?.ToString();
-                    if (string.Equals(name, "SenderName", StringComparison.OrdinalIgnoreCase))
+                    cmd.CommandText = "SELECT column_name FROM information_schema.columns WHERE table_name='sentquotes';";
+                    using var rdr = cmd.ExecuteReader();
+                    while (rdr.Read())
                     {
-                        hasSenderName = true;
-                        break;
+                        if (rdr.GetString(0).Equals("sendername", StringComparison.OrdinalIgnoreCase))
+                            hasSenderName = true;
                     }
                 }
-                rdrSq.Close();
+
                 if (!hasSenderName)
                 {
-                    using var alter = connSq.CreateCommand();
-                    alter.CommandText = "ALTER TABLE SentQuotes ADD COLUMN SenderName TEXT;";
+                    using var alter = conn.CreateCommand();
+                    alter.CommandText = "ALTER TABLE sentquotes ADD COLUMN sendername TEXT;";
                     alter.ExecuteNonQuery();
                     Console.WriteLine("Added SenderName column to SentQuotes table.");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Could not ensure SenderName column on SentQuotes: {ex.Message}");
+                Console.WriteLine($"Could not ensure SenderName: {ex.Message}");
             }
 
-            // Ensure Customers table exists
+            // Customers
             try
             {
-                using var connCust = db.Database.GetDbConnection();
-                connCust.Open();
-                using var cmdCust = connCust.CreateCommand();
-                cmdCust.CommandText = @"CREATE TABLE IF NOT EXISTS Customers (
-            Id INTEGER PRIMARY KEY AUTOINCREMENT,
-            Name TEXT NOT NULL,
-            Email TEXT
-        );";
-                cmdCust.ExecuteNonQuery();
+                var conn = db.Database.GetDbConnection();
+                if (conn.State != System.Data.ConnectionState.Open)
+                    conn.Open();
+                    
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = @"
+                    CREATE TABLE IF NOT EXISTS customers (
+                        id SERIAL PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        email TEXT
+                    );";
+                cmd.ExecuteNonQuery();
                 Console.WriteLine("Ensured Customers table exists.");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Could not ensure Customers table exists: {ex.Message}");
+                Console.WriteLine($"Could not ensure Customers: {ex.Message}");
             }
 
-            // Ensure Suggestions table exists
+            // Suggestions
             try
             {
-                using var connSug = db.Database.GetDbConnection();
-                connSug.Open();
-                using var cmdSug = connSug.CreateCommand();
-                cmdSug.CommandText = @"CREATE TABLE IF NOT EXISTS Suggestions (
-            Id INTEGER PRIMARY KEY AUTOINCREMENT,
-            Key TEXT NOT NULL,
-            Value TEXT NOT NULL,
-            SortOrder INTEGER,
-            CreatedAt TEXT NOT NULL,
-            CreatedBy TEXT
-        );";
-                cmdSug.ExecuteNonQuery();
+                var conn = db.Database.GetDbConnection();
+                if (conn.State != System.Data.ConnectionState.Open)
+                    conn.Open();
+                    
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = @"
+                    CREATE TABLE IF NOT EXISTS suggestions (
+                        id SERIAL PRIMARY KEY,
+                        key TEXT NOT NULL,
+                        value TEXT NOT NULL,
+                        sortorder INTEGER,
+                        createdat TIMESTAMP NOT NULL,
+                        createdby TEXT
+                    );";
+                cmd.ExecuteNonQuery();
                 Console.WriteLine("Ensured Suggestions table exists.");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Could not ensure Suggestions table exists: {ex.Message}");
+                Console.WriteLine($"Could not ensure Suggestions: {ex.Message}");
             }
 
-            // Ensure EmailAccounts table exists
+            // EmailAccounts
             try
             {
-                using var connEmail = db.Database.GetDbConnection();
-                connEmail.Open();
-                using var cmdEmail = connEmail.CreateCommand();
-                cmdEmail.CommandText = @"CREATE TABLE IF NOT EXISTS EmailAccounts (
-            Id INTEGER PRIMARY KEY AUTOINCREMENT,
-            Name TEXT NOT NULL,
-            Host TEXT NOT NULL,
-            Port INTEGER NOT NULL DEFAULT 587,
-            UserName TEXT,
-            EncryptedPassword TEXT,
-            FromAddress TEXT NOT NULL,
-            UseTls INTEGER NOT NULL DEFAULT 1,
-            IsActive INTEGER NOT NULL DEFAULT 0,
-            CreatedBy TEXT,
-            CreatedAt TEXT NOT NULL
-        );";
-                cmdEmail.ExecuteNonQuery();
+                var conn = db.Database.GetDbConnection();
+                if (conn.State != System.Data.ConnectionState.Open)
+                    conn.Open();
+                    
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = @"
+                    CREATE TABLE IF NOT EXISTS emailaccounts (
+                        id SERIAL PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        host TEXT NOT NULL,
+                        port INTEGER NOT NULL DEFAULT 587,
+                        username TEXT,
+                        encryptedpassword TEXT,
+                        fromaddress TEXT NOT NULL,
+                        usetls BOOLEAN NOT NULL DEFAULT TRUE,
+                        isactive BOOLEAN NOT NULL DEFAULT FALSE,
+                        createdby TEXT,
+                        createdat TIMESTAMP NOT NULL
+                    );";
+                cmd.ExecuteNonQuery();
                 Console.WriteLine("Ensured EmailAccounts table exists.");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Could not ensure EmailAccounts table exists: {ex.Message}");
+                Console.WriteLine($"Could not ensure EmailAccounts: {ex.Message}");
             }
 
-            // Ensure RefreshTokens table exists
+            // RefreshTokens
             try
             {
-                using var connRt = db.Database.GetDbConnection();
-                connRt.Open();
-                using var cmdRt = connRt.CreateCommand();
-                cmdRt.CommandText = @"CREATE TABLE IF NOT EXISTS RefreshTokens (
-            Id INTEGER PRIMARY KEY AUTOINCREMENT,
-            Token TEXT NOT NULL,
-            UserId TEXT NOT NULL,
-            ExpiresAt TEXT NOT NULL,
-            CreatedAt TEXT NOT NULL,
-            RevokedAt TEXT,
-            ReplacedByToken TEXT
-        );";
-                cmdRt.ExecuteNonQuery();
+                var conn = db.Database.GetDbConnection();
+                if (conn.State != System.Data.ConnectionState.Open)
+                    conn.Open();
+                    
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = @"
+                    CREATE TABLE IF NOT EXISTS refreshtokens (
+                        id SERIAL PRIMARY KEY,
+                        token TEXT NOT NULL,
+                        userid TEXT NOT NULL,
+                        expiresat TIMESTAMP NOT NULL,
+                        createdat TIMESTAMP NOT NULL,
+                        revokedat TIMESTAMP,
+                        replacedbytoken TEXT
+                    );";
+                cmd.ExecuteNonQuery();
                 Console.WriteLine("Ensured RefreshTokens table exists.");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Could not ensure RefreshTokens table exists: {ex.Message}");
+                Console.WriteLine($"Could not ensure RefreshTokens: {ex.Message}");
             }
 
-            string[] roles = new[] { "admin", "servis", "muhasebe", "user" };
+            // Roles
+            string[] roles = { "admin", "servis", "muhasebe", "user" };
             foreach (var role in roles)
             {
                 if (!await roleManager.RoleExistsAsync(role))

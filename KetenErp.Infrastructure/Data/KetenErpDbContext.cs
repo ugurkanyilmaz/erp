@@ -1,7 +1,12 @@
+using System;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using KetenErp.Core.Entities;
 using KetenErp.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace KetenErp.Infrastructure.Data
 {
@@ -9,6 +14,45 @@ namespace KetenErp.Infrastructure.Data
     {
         public KetenErpDbContext(DbContextOptions<KetenErpDbContext> options) : base(options)
         {
+        }
+
+        public override int SaveChanges()
+        {
+            ConvertDateTimesToUtc();
+            return base.SaveChanges();
+        }
+
+        public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            ConvertDateTimesToUtc();
+            return base.SaveChangesAsync(cancellationToken);
+        }
+
+        private void ConvertDateTimesToUtc()
+        {
+            var entries = ChangeTracker.Entries()
+                .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified);
+
+            foreach (var entry in entries)
+            {
+                foreach (var property in entry.Properties)
+                {
+                    var value = property.CurrentValue;
+                    
+                    // Handle DateTime
+                    if (value is DateTime dateTime)
+                    {
+                        if (dateTime.Kind == DateTimeKind.Unspecified)
+                        {
+                            property.CurrentValue = DateTime.SpecifyKind(dateTime, DateTimeKind.Utc);
+                        }
+                        else if (dateTime.Kind == DateTimeKind.Local)
+                        {
+                            property.CurrentValue = dateTime.ToUniversalTime();
+                        }
+                    }
+                }
+            }
         }
 
         public DbSet<Product> Products { get; set; } = null!;
@@ -74,6 +118,17 @@ namespace KetenErp.Infrastructure.Data
                 entity.Property(e => e.ExpiresAt).IsRequired();
                 entity.Property(e => e.CreatedAt).IsRequired();
             });
+
+            foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+            {
+                foreach (var property in entityType.GetProperties())
+                {
+                    if (property.ClrType == typeof(DateTime) || property.ClrType == typeof(DateTime?))
+                    {
+                        property.SetColumnType("timestamp without time zone");
+                    }
+                }
+            }
         }
     }
 }

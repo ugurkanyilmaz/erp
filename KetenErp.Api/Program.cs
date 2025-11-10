@@ -19,30 +19,64 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// CORS - allow the frontend dev server
+// Response compression for better performance
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+});
+
+// Add memory cache
+builder.Services.AddMemoryCache();
+
+// Add HTTP client with retry policy
+builder.Services.AddHttpClient();
+
+// CORS - allow the frontend
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(name: "AllowFrontend",
         policy =>
         {
-            // For both development and production allow the frontend origin and credentials
-            // so the refresh-token cookie (HttpOnly) can be sent by the browser.
-            policy.WithOrigins("http://localhost:5173")
+            // Allow both development and production origins
+            var allowedOrigins = new[] 
+            { 
+                "http://localhost:5173",                                    // Vite dev server
+                "http://localhost:80",                                      // Docker frontend local
+                "http://localhost",                                         // Docker frontend alternative
+                "https://havalielaletleritamiri.com",                      // Production domain
+                "http://havalielaletleritamiri.com",                       // Production HTTP
+                builder.Configuration["FrontendUrl"] ?? "http://localhost"  // .env'den
+            };
+            
+            policy.WithOrigins(allowedOrigins)
                   .AllowAnyHeader()
                   .AllowAnyMethod()
                   .AllowCredentials();
         });
 });
 
-// Configure EF Core to use SQLite (file-based DB)
-// Place the DB file inside the runtime output folder (AppContext.BaseDirectory) so the app
-// always uses the DB from the `bin/...` folder during execution.
-var dbFilePath = Path.Combine(AppContext.BaseDirectory, "ketenerp.db");
-var sqliteDefault = $"Data Source={Path.GetFullPath(dbFilePath)}";
-// Log the DB file path at startup to help debugging where the file is created
-Console.WriteLine($"Using SQLite DB at runtime path: {Path.GetFullPath(dbFilePath)}");
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? sqliteDefault;
-builder.Services.AddDbContext<KetenErpDbContext>(options => options.UseSqlite(connectionString));
+// Configure EF Core to use PostgreSQL
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+Console.WriteLine($"Using PostgreSQL connection");
+builder.Services.AddDbContext<KetenErpDbContext>(options => 
+{
+    options.UseNpgsql(connectionString, npgsqlOptions =>
+    {
+        // Connection resilience
+        npgsqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(10),
+            errorCodesToAdd: null);
+        npgsqlOptions.CommandTimeout(60);
+    });
+    
+    // Only enable sensitive data logging in development
+    if (builder.Environment.IsDevelopment())
+    {
+        options.EnableSensitiveDataLogging();
+    }
+});
 
 // DI
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
@@ -107,32 +141,70 @@ builder.Services.AddScoped<EmailService>();
 
 var app = builder.Build();
 
+// Global exception handling middleware
+app.UseExceptionHandler(errorApp =>
+{
+    errorApp.Run(async context =>
+    {
+        context.Response.StatusCode = 500;
+        context.Response.ContentType = "application/json";
+        
+        var error = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>();
+        if (error != null)
+        {
+            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+            logger.LogError(error.Error, "Unhandled exception occurred");
+            
+            await context.Response.WriteAsJsonAsync(new 
+            { 
+                error = "An error occurred processing your request.",
+                details = app.Environment.IsDevelopment() ? error.Error.Message : null
+            });
+        }
+    });
+});
+
+// Enable response compression
+app.UseResponseCompression();
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
     app.UseSwagger();
     app.UseSwaggerUI();
-    // Do not force HTTPS redirection in development to avoid https-port redirect warnings
 }
 else
 {
-    app.UseHttpsRedirection();
+    app.UseHsts(); // HTTP Strict Transport Security
 }
 
 // Enable CORS early so preflight requests are handled
 app.UseCors("AllowFrontend");
 
-// Simple request logging to help debug incoming requests (method/path and Authorization header presence)
+// Request logging middleware
 app.Use(async (context, next) =>
 {
+    var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+    var startTime = DateTime.UtcNow;
+    
     try
     {
-        var hasAuth = context.Request.Headers.ContainsKey("Authorization");
-        Console.WriteLine($"[{DateTime.Now:O}] Incoming: {context.Request.Method} {context.Request.Path} AuthHeader={(hasAuth ? "yes" : "no")}");
+        await next();
     }
-    catch { }
-    await next();
+    finally
+    {
+        var elapsed = DateTime.UtcNow - startTime;
+        if (elapsed.TotalMilliseconds > 1000) // Log slow requests
+        {
+            logger.LogWarning(
+                "Slow request: {Method} {Path} took {ElapsedMs}ms - Status {StatusCode}",
+                context.Request.Method,
+                context.Request.Path,
+                elapsed.TotalMilliseconds,
+                context.Response.StatusCode);
+        }
+    }
 });
 
 app.UseAuthentication();

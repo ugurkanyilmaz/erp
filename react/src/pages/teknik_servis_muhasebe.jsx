@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import serviceApi from '../hooks/serviceApi';
+import API_BASE_URL from '../config/api';
 
 export default function Muhasebe(props) {
-  const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5019';
+  const API_BASE = API_BASE_URL;
   const [localSelectedRecordId, setLocalSelectedRecordId] = useState('');
   const [localAccountingOperations, setLocalAccountingOperations] = useState([]);
   const outlet = useOutletContext?.() ?? {};

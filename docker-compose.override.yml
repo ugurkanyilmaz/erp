@@ -1,0 +1,31 @@
+# Development Override
+# Bu dosya sadece development ortamında kullanılır
+# Production'da bu dosyayı silmeyi unutmayın veya docker-compose up yaparken -f flagiyle sadece ana dosyayı kullanın
+
+version: '3.8'
+
+services:
+  postgres:
+    ports:
+      - "5432:5432"  # Development'ta dışarıdan erişim için
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 4G
+
+  api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 4G
+
+  frontend:
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G

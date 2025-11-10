@@ -2,23 +2,24 @@ import axios from 'axios';
 
 // In Vite use import.meta.env.VITE_API_URL for runtime env vars.
 // You can create a `.env` file at the project root with e.g.:
-// VITE_API_URL=http://192.168.1.45:5019
+// VITE_API_URL=http://192.168.1.45:5000
 // If VITE_API_URL is not provided, when running in the browser we derive the API host
 // from the frontend by using window.location.hostname (works with both localhost and network IP)
-// and appending the API port 5019 so mobile clients work when the frontend is served from
-// http://<machine-ip>:5173.
-const defaultApiPort = '5019';
+// and appending the API port 5000 so mobile clients work when the frontend is served from
+// http://<machine-ip>:5173 or in production from the same origin.
+const defaultApiPort = '5000';
 const base = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? (() => {
   try {
     // Use hostname instead of origin to avoid the port confusion
-    // e.g. if frontend is at http://192.168.141.29:5173, we want http://192.168.141.29:5019
+    // e.g. if frontend is at http://192.168.141.29:5173, we want http://192.168.141.29:5000
+    // In production (Docker), both will be on the same host
     const protocol = window.location.protocol; // http: or https:
     const hostname = window.location.hostname; // 192.168.141.29 or localhost
     return `${protocol}//${hostname}:${defaultApiPort}`;
   } catch {
-    return 'http://localhost:5019';
+    return 'http://localhost:5000';
   }
-})() : 'http://localhost:5019');
+})() : 'http://localhost:5000');
 
 const api = axios.create({
   baseURL: base,

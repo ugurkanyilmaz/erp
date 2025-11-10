@@ -4,6 +4,7 @@ import stockApi from '../hooks/stockApi';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Link2, Plus, Search, Edit2, Trash2, AlertCircle, FileText, ChevronLeft, TrendingDown, TrendingUp, Upload } from 'lucide-react';
 import axios from 'axios';
+import { buildApiUrl } from '../config/api';
 
 export default function StockParts() {
   const [showPartModal, setShowPartModal] = useState(false);
@@ -46,9 +47,10 @@ export default function StockParts() {
 
     try {
       const token = localStorage.getItem('token');
-      console.log('İstek gönderiliyor:', 'http://localhost:5019/api/stockimport/spareparts');
+      const apiUrl = buildApiUrl('stockimport/spareparts');
+      console.log('İstek gönderiliyor:', apiUrl);
       
-      const response = await axios.post('http://localhost:5019/api/stockimport/spareparts', formData, {
+      const response = await axios.post(apiUrl, formData, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'multipart/form-data'

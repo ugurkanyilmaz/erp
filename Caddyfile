@@ -1,0 +1,53 @@
+{
+    email admin@havalielaletleritamiri.com
+}
+
+{$DOMAIN} {
+    encode gzip zstd
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Frame-Options "SAMEORIGIN"
+        X-Content-Type-Options "nosniff"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    handle /health {
+        respond "OK" 200
+    }
+
+    handle /api/* {
+        reverse_proxy ketenerp-api:8080 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    handle /swagger* {
+        reverse_proxy ketenerp-api:8080
+    }
+
+    handle {
+        reverse_proxy ketenerp-frontend:80 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    log {
+        output file /var/log/caddy/access.log {
+            roll_size 10MB
+            roll_keep 5
+        }
+    }
+}
+
+http://{$DOMAIN} {
+    redir https://{host}{uri} permanent
+}

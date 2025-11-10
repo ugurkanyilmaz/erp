@@ -1,0 +1,139 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ketenerp-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ketenerp
+      POSTGRES_USER: ketenuser
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ChangeThisPassword123!}
+      # PostgreSQL performance tuning
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=tr_TR.UTF-8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # PostgreSQL portunu dışarı açmıyoruz (güvenlik)
+    # Sadece Docker network içinden erişilebilir
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ketenuser -d ketenerp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    # Resource limits - Sunucunuza göre ayarlayın
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    networks:
+      - ketenerp-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: ketenerp-api
+    restart: always
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__DefaultConnection=Host=postgres;Database=ketenerp;Username=ketenuser;Password=${POSTGRES_PASSWORD:-ChangeThisPassword123!};Maximum Pool Size=100;Timeout=30;Command Timeout=60
+      - Jwt__Key=${JWT_SECRET_KEY:-please-change-this-secret-to-a-long-random-value-for-production}
+      - Jwt__Issuer=KetenErp
+      - Jwt__Audience=KetenErpUsers
+      - Jwt__AccessTokenExpirationMinutes=720
+      - Jwt__RefreshTokenExpirationDays=30
+      # Performans ayarları
+      - DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
+      - DOTNET_gcServer=1
+      - COMPlus_ThreadPool_ForceMinWorkerThreads=100
+      - COMPlus_ThreadPool_ForceMaxWorkerThreads=500
+    ports:
+      - "5000:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - api_uploads:/app/wwwroot
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    networks:
+      - ketenerp-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: ketenerp-frontend
+    restart: always
+    environment:
+      # Nginx worker processları (CPU core sayınıza göre ayarlayın)
+      - NGINX_WORKER_PROCESSES=auto
+      - NGINX_WORKER_CONNECTIONS=1024
+    ports:
+      - "80:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    networks:
+      - ketenerp-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  postgres_data:
+    driver: local
+  api_uploads:
+    driver: local
+
+networks:
+  ketenerp-network:
+    driver: bridge

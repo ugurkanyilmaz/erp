@@ -3,6 +3,7 @@ import stockApi from '../hooks/stockApi';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Package, Plus, Search, Edit2, Trash2, FileText, AlertCircle, ChevronLeft, TrendingUp, TrendingDown, Upload } from 'lucide-react';
 import axios from 'axios';
+import { buildApiUrl } from '../config/api';
 
 export default function StockProducts() {
   const [showProductModal, setShowProductModal] = useState(false);
@@ -44,9 +45,10 @@ export default function StockProducts() {
 
     try {
       const token = localStorage.getItem('token');
-      console.log('İstek gönderiliyor:', 'http://localhost:5019/api/stockimport/products');
+      const apiUrl = buildApiUrl('stockimport/products');
+      console.log('İstek gönderiliyor:', apiUrl);
       
-      const response = await axios.post('http://localhost:5019/api/stockimport/products', formData, {
+      const response = await axios.post(apiUrl, formData, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'multipart/form-data'

@@ -2,12 +2,13 @@ import React, { useEffect, useState, useRef } from 'react';
 import Header from '../components/Header';
 import { Settings } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import API_BASE_URL from '../config/api';
 
 function makeId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
 
 export default function SettingsEmail() {
   // Use Vite env var to allow different backend ports in dev/prod
-  const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5019';
+  const API_BASE = API_BASE_URL;
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');

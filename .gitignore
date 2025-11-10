@@ -1,0 +1,30 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+*.cache
+.vs/
+.vscode/
+*.db
+*.db-shm
+*.db-wal
+
+# Docker & Environment
+.env
+.env.local
+.env.*.local
+
+# Uploads and Runtime Files
+wwwroot/uploads/
+Logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
