@@ -100,8 +100,10 @@ services:
       # Nginx worker processları (CPU core sayınıza göre ayarlayın)
       - NGINX_WORKER_PROCESSES=auto
       - NGINX_WORKER_CONNECTIONS=1024
-    ports:
-      - "80:80"
+    # When using Caddy as a reverse proxy, frontend should not bind host port 80 directly.
+    ports: []
+    expose:
+      - "80"
     depends_on:
       api:
         condition: service_healthy
@@ -128,10 +130,39 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # Caddy reverse proxy to handle automatic HTTPS using the root Caddyfile
+  caddy:
+    image: caddy:2-alpine
+    container_name: ketenerp-caddy
+    restart: always
+    ports:
+      - "80:80"        # HTTP (Let's Encrypt ACME challenge)
+      - "443:443"      # HTTPS
+      - "443:443/udp"  # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+      - caddy_logs:/var/log/caddy
+    networks:
+      - ketenerp-network
+    depends_on:
+      - api
+      - frontend
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+      - EMAIL=${CADDY_EMAIL:-admin@localhost}
+
 volumes:
   postgres_data:
     driver: local
   api_uploads:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
+  caddy_logs:
     driver: local
 
 networks:
