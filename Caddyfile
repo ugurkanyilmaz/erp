@@ -6,7 +6,7 @@
 
 # Combine localhost and configured domain into a single site matcher to
 # avoid ambiguous site definition errors when {$DOMAIN} defaults to localhost.
-10.10.10.3:8443, 31.223.18.233:8443, localhost, {$DOMAIN} {
+http://10.10.10.3:8443, http://31.223.18.233:8443, http://localhost:8443, http://{$DOMAIN}:8443 {
     encode gzip zstd
 
     header {
