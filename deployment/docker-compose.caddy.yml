@@ -1,4 +1,4 @@
-# Docker Compose with Caddy Server for SSL
+# Docker Compose with Caddy reverse proxy (TLS Cloudflare üzerinden)
 # Usage: docker-compose -f docker-compose.yml -f docker-compose.caddy.yml up -d
 
 version: '3.8'
@@ -9,9 +9,7 @@ services:
     container_name: ketenerp-caddy
     restart: always
     ports:
-      - "80:80"        # HTTP (Let's Encrypt ACME challenge)
-      - "443:443"      # HTTPS
-      - "443:443/udp"  # HTTP/3
+      - "8443:80"      # Cloudflare origin HTTP port
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
@@ -24,7 +22,6 @@ services:
       - frontend
     environment:
       - DOMAIN=${DOMAIN:-localhost}
-      - EMAIL=${CADDY_EMAIL:-admin@localhost}
 
   # Override frontend - no need to expose port 80 directly
   frontend:

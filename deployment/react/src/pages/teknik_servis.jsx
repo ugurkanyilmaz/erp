@@ -196,6 +196,68 @@ export default function TeknikServis() {
 
   const clearNotification = () => setNotification({ type: '', message: '' });
 
+  // Inline Create Form used when child component files are missing
+  function CreateForm({ products, productsLoading, servisKayitlari, reloadServisKayitlari, setNotification }) {
+    const [yeniKayit, setYeniKayit] = useState({
+      servisTakipNo: '', urunModeli: '', firmaIsmi: '', gelisTarihi: getDefaultDateTimeLocal(), belgeNo: '', alanKisi: '', notlar: ''
+    });
+    const [submitting, setSubmitting] = useState(false);
+
+    function getDefaultDateTimeLocal() {
+      const d = new Date();
+      const tzOffset = d.getTimezoneOffset();
+      const local = new Date(d.getTime() - tzOffset * 60000);
+      return local.toISOString().slice(0, 16);
+    }
+
+    const handleCreate = async () => {
+      try {
+        setSubmitting(true);
+        const payload = {
+          servisTakipNo: yeniKayit.servisTakipNo,
+          urunModeli: yeniKayit.urunModeli,
+          firmaIsmi: yeniKayit.firmaIsmi,
+          gelisTarihi: yeniKayit.gelisTarihi ? new Date(yeniKayit.gelisTarihi).toISOString() : null,
+          durum: 'Kayıt Açıldı',
+          belgeNo: yeniKayit.belgeNo,
+          alanKisi: yeniKayit.alanKisi,
+          notlar: yeniKayit.notlar,
+        };
+        await serviceApi.createServiceRecord(payload);
+        try { await reloadServisKayitlari(); } catch (e) { /* ignore */ }
+        setNotification({ type: 'success', message: 'Kayıt oluşturuldu.' });
+        navigate('/teknik-servis');
+      } catch (err) {
+        console.error('Create failed', err);
+        setNotification({ type: 'error', message: err?.message || 'Kayıt oluşturulamadı.' });
+        throw err;
+      } finally {
+        setSubmitting(false);
+      }
+    };
+
+    return (
+      <div className="bg-white shadow-xl rounded-2xl p-6">
+        <h2 className="text-lg font-semibold text-slate-800 mb-6">Yeni Servis Kaydı</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <input className="input input-bordered" placeholder="Servis Takip No" value={yeniKayit.servisTakipNo} onChange={(e) => setYeniKayit({ ...yeniKayit, servisTakipNo: e.target.value })} />
+          <input className="input input-bordered" placeholder="Belge No" value={yeniKayit.belgeNo} onChange={(e) => setYeniKayit({ ...yeniKayit, belgeNo: e.target.value })} />
+          <input className="input input-bordered" placeholder="Firma İsmi" value={yeniKayit.firmaIsmi} onChange={(e) => setYeniKayit({ ...yeniKayit, firmaIsmi: e.target.value })} />
+          <input className="input input-bordered" placeholder="Ürün (SKU)" value={yeniKayit.urunModeli} onChange={(e) => setYeniKayit({ ...yeniKayit, urunModeli: e.target.value })} />
+          <input type="datetime-local" className="input input-bordered" value={yeniKayit.gelisTarihi} onChange={(e) => setYeniKayit({ ...yeniKayit, gelisTarihi: e.target.value })} />
+          <input className="input input-bordered" placeholder="Alan Kişi" value={yeniKayit.alanKisi} onChange={(e) => setYeniKayit({ ...yeniKayit, alanKisi: e.target.value })} />
+        </div>
+        <div className="mt-4">
+          <textarea className="textarea textarea-bordered w-full" placeholder="Notlar" value={yeniKayit.notlar} onChange={(e) => setYeniKayit({ ...yeniKayit, notlar: e.target.value })} />
+        </div>
+        <div className="flex justify-end gap-3 mt-4">
+          <button className="btn" onClick={() => navigate('/teknik-servis')}>İptal</button>
+          <button className="btn btn-primary" onClick={handleCreate} disabled={submitting}>{submitting ? 'Kaydediliyor...' : 'Kayıt Oluştur'}</button>
+        </div>
+      </div>
+    );
+  }
+
   // expose quote-sending hooks to children
   const sendBulkQuotes = async (payload) => {
     try {
@@ -263,9 +325,13 @@ export default function TeknikServis() {
         </div>
 
         <AnimatePresence mode="wait" initial={false}>
-          <motion.div key={location.pathname} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.22 }} className="space-y-6">
-            <Outlet context={{ products, productsLoading, productsError, spareParts, sparePartsLoading, sparePartsError, servisKayitlari, servisLoading, servisError, reloadServisKayitlari, roles, openDetail, setNotification, sendBulkQuotes, sendQuote }} />
-          </motion.div>
+            <motion.div key={location.pathname} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.22 }} className="space-y-6">
+              {location.pathname.startsWith(`${base}/new`) ? (
+                <CreateForm products={products} productsLoading={productsLoading} servisKayitlari={servisKayitlari} reloadServisKayitlari={reloadServisKayitlari} setNotification={setNotification} />
+              ) : (
+                <Outlet context={{ products, productsLoading, productsError, spareParts, sparePartsLoading, sparePartsError, servisKayitlari, servisLoading, servisError, reloadServisKayitlari, roles, openDetail, setNotification, sendBulkQuotes, sendQuote }} />
+              )}
+            </motion.div>
         </AnimatePresence>
         <Notification type={notification.type || 'info'} message={notification.message || ''} onClose={clearNotification} />
 

@@ -8,18 +8,35 @@ import axios from 'axios';
 // and appending the API port 5000 so mobile clients work when the frontend is served from
 // http://<machine-ip>:5173 or in production from the same origin.
 const defaultApiPort = '5000';
-const base = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? (() => {
+const deriveBaseUrl = () => {
+  const isBrowser = typeof window !== 'undefined';
+  if (!isBrowser) return `http://localhost:${defaultApiPort}`;
+
   try {
-    // Use hostname instead of origin to avoid the port confusion
-    // e.g. if frontend is at http://192.168.141.29:5173, we want http://192.168.141.29:5000
-    // In production (Docker), both will be on the same host
-    const protocol = window.location.protocol; // http: or https:
-    const hostname = window.location.hostname; // 192.168.141.29 or localhost
-    return `${protocol}//${hostname}:${defaultApiPort}`;
+    const { protocol, hostname, port } = window.location;
+    const devPorts = new Set(['5173', '5174', '3000']);
+    if (devPorts.has(port)) {
+      // Local dev server (Vite/React) -> talk to API port directly
+      return `${protocol}//${hostname}:${defaultApiPort}`;
+    }
+
+    // In production or when served from Docker/Caddy we want same-origin calls (goes through /api)
+    const portSegment = port ? `:${port}` : '';
+    return `${protocol}//${hostname}${portSegment}`;
   } catch {
-    return 'http://localhost:5000';
+    return `http://localhost:${defaultApiPort}`;
   }
-})() : 'http://localhost:5000');
+};
+
+const base = import.meta.env.VITE_API_URL || deriveBaseUrl();
+
+const TOKEN_EVENT = 'keten-auth-token-changed';
+const LOGOUT_EVENT = 'keten-auth-logout';
+const broadcast = (eventName) => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(eventName));
+  }
+};
 
 const api = axios.create({
   baseURL: base,
@@ -65,6 +82,15 @@ api.interceptors.response.use(
     // If 401 and we haven't retried yet, attempt refresh
     if (err.response && err.response.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
+      // If a logout is in progress, do not attempt refresh — force redirect
+      try {
+        if (localStorage.getItem('keten-logging-out')) {
+          localStorage.removeItem('token');
+          broadcast(LOGOUT_EVENT);
+          window.location.href = '/login';
+          return Promise.reject(err);
+        }
+      } catch {}
 
       if (isRefreshing) {
         // Queue the request until refresh finishes
@@ -86,17 +112,20 @@ api.interceptors.response.use(
         const newToken = refreshRes.data?.token;
         if (newToken) {
           localStorage.setItem('token', newToken);
+          broadcast(TOKEN_EVENT);
           onRefreshed(newToken);
           originalRequest.headers.Authorization = `Bearer ${newToken}`;
           return api(originalRequest);
         }
         // fallback: redirect to login
         localStorage.removeItem('token');
+        broadcast(LOGOUT_EVENT);
         window.location.href = '/login';
         return Promise.reject(err);
       } catch (refreshErr) {
         // refresh failed -> force login
         localStorage.removeItem('token');
+        broadcast(LOGOUT_EVENT);
         window.location.href = '/login';
         return Promise.reject(refreshErr);
       } finally {

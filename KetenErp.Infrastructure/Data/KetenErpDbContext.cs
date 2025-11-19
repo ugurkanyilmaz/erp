@@ -125,7 +125,10 @@ namespace KetenErp.Infrastructure.Data
                 {
                     if (property.ClrType == typeof(DateTime) || property.ClrType == typeof(DateTime?))
                     {
-                        property.SetColumnType("timestamp without time zone");
+                        if (string.IsNullOrEmpty(property.GetColumnType()))
+                        {
+                            property.SetColumnType("timestamp with time zone");
+                        }
                     }
                 }
             }

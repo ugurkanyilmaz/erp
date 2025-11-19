@@ -5,13 +5,12 @@ import serviceApi from '../hooks/serviceApi';
 
 function getDefaultDateTimeLocal() {
   const d = new Date();
-  // convert to local timezone ISO string without seconds/milliseconds and without the trailing Z
   const tzOffset = d.getTimezoneOffset();
   const local = new Date(d.getTime() - tzOffset * 60000);
   return local.toISOString().slice(0, 16);
 }
 
-export default function ServisNew(props) {
+export default function ServisCreate(props) {
   const [yeniKayit, setYeniKayit] = useState({
     servisTakipNo: '',
     urunModeli: '',
@@ -21,7 +20,6 @@ export default function ServisNew(props) {
     alanKisi: '',
     notlar: '',
   });
-  // Prefer props, then Outlet context (from wrapper), then local defaults
   const outlet = useOutletContext?.() ?? {};
   const products = props.products ?? outlet.products ?? [];
   const productsLoading = props.productsLoading ?? outlet.productsLoading ?? false;
@@ -43,7 +41,6 @@ export default function ServisNew(props) {
   const [customersLoading, setCustomersLoading] = useState(false);
   const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
 
-  // Alan kişi suggestions (persisted in localStorage)
   const [alanKisiSuggestions, setAlanKisiSuggestions] = useState([]);
   useEffect(() => {
     const key = 'ts_alanKisi_suggestions';
@@ -57,9 +54,7 @@ export default function ServisNew(props) {
           setAlanKisiSuggestions((data || []).map(d => d.value));
           return;
         }
-      } catch (e) {
-        // fallthrough to localStorage fallback
-      }
+      } catch (e) { }
 
       try {
         const stored = JSON.parse(localStorage.getItem(key) || 'null');
@@ -76,7 +71,6 @@ export default function ServisNew(props) {
     return () => { mounted = false; };
   }, []);
 
-  // On mount, fetch the next BelgeNo and ServisTakipNo and prefill the fields if empty
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -85,11 +79,9 @@ export default function ServisNew(props) {
           serviceApi.getNextBelgeNo(),
           serviceApi.getNextTakipNo()
         ]);
-        console.log('Auto numbers fetched:', { belgeRes, takipRes });
         if (mounted && belgeRes && takipRes) {
           const newBelgeNo = belgeRes.BelgeNo || belgeRes.belgeNo || '';
           const newTakipNo = takipRes.ServisTakipNo || takipRes.servisTakipNo || '';
-          console.log('Setting auto numbers:', { newBelgeNo, newTakipNo });
           setYeniKayit(prev => ({ 
             ...prev, 
             belgeNo: newBelgeNo,
@@ -97,12 +89,10 @@ export default function ServisNew(props) {
           }));
         }
       } catch (e) {
-        // ignore - optional
         console.error('Could not fetch next numbers', e);
       }
     })();
 
-    // fetch customers for the Firma İsmi datalist
     (async () => {
       setCustomersLoading(true);
       try {
@@ -120,41 +110,29 @@ export default function ServisNew(props) {
     return () => { mounted = false; };
   }, []);
 
-  // Close suggestion panels when clicking outside their containers using reusable hook
   useOutsideClick([suggestionsRef, customerRef], () => {
     try {
       setShowProductSuggestions(false);
       setShowCustomerSuggestions(false);
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) { }
   });
 
-  // If parent provided createRecord prop, use it; otherwise use local implementation
   const handleCreateRecord = props.createRecord ?? (async () => {
     try {
       setSubmitError('');
       setSubmitting(true);
-      // map frontend keys (camelCase) to backend expected shape — backend is case-insensitive
       const payload = {
-  servisTakipNo: yeniKayit.servisTakipNo,
+        servisTakipNo: yeniKayit.servisTakipNo,
         urunModeli: yeniKayit.urunModeli,
         firmaIsmi: yeniKayit.firmaIsmi,
-        gelisTarihi: yeniKayit.gelisTarihi,
-  // initial status when a record is created
-  durum: 'Kayıt Açıldı',
+        gelisTarihi: yeniKayit.gelisTarihi ? new Date(yeniKayit.gelisTarihi).toISOString() : null,
+        durum: 'Kayıt Açıldı',
         belgeNo: yeniKayit.belgeNo,
         alanKisi: yeniKayit.alanKisi,
         notlar: yeniKayit.notlar,
       };
       const created = await serviceApi.createServiceRecord(payload);
-      // refresh parent list if available instead of navigating away
-      try {
-        await outlet.reloadServisKayitlari?.();
-      } catch (e) {
-        // ignore
-      }
-      // clear form and fetch new auto numbers for next entry
+      try { await outlet.reloadServisKayitlari?.(); } catch (e) { }
       const [nextBelge, nextTakip] = await Promise.all([
         serviceApi.getNextBelgeNo(),
         serviceApi.getNextTakipNo()
@@ -168,7 +146,6 @@ export default function ServisNew(props) {
         alanKisi: '', 
         notlar: '' 
       });
-      // let the parent show a notification if provided, otherwise fallback to alert
       if (outlet.setNotification) {
         outlet.setNotification({ type: 'success', message: 'Kayıt oluşturuldu.' });
       } else {
@@ -184,12 +161,12 @@ export default function ServisNew(props) {
     }
   });
 
-  // If no filteredProducts are provided via props, perform a local filtering based on the typed SKU/product
   const localFilteredProducts = (filteredProductsProp && filteredProductsProp.length > 0)
     ? filteredProductsProp
     : (yeniKayit.urunModeli
       ? products.filter((p) => ((p.sku || p.title || p.model || '') + '').toLowerCase().includes((yeniKayit.urunModeli + '').toLowerCase()))
       : products);
+
   return (
     <div className="bg-white shadow-xl rounded-2xl p-6">
       <h2 className="text-lg font-semibold text-slate-800 mb-6">Yeni Servis Kaydı Oluştur</h2>
@@ -204,7 +181,6 @@ export default function ServisNew(props) {
             return (
               <div className="form-control mb-6" key={key}>
                 <label className="label text-sm font-semibold text-slate-700 mb-3">{label}:</label>
-                {/* Attach customerRef to this wrapper so useOutsideClick can detect inside clicks correctly */}
                 <div className="relative" ref={customerRef}>
                   <input
                     type="text"
@@ -244,7 +220,6 @@ export default function ServisNew(props) {
           );
         })}
 
-        {/* Alan Kişi - suggestions (managed in Ayarlar) */}
         <div className="form-control mb-6">
           <label className="label text-sm font-semibold text-slate-700 mb-3">Alan Kişi:</label>
           <div className="flex items-center gap-2">
@@ -266,7 +241,6 @@ export default function ServisNew(props) {
                     return;
                   }
                 } catch (e) { }
-                // fallback
                 const next = [val, ...alanKisiSuggestions.filter(x => x !== val)];
                 try { localStorage.setItem(key, JSON.stringify(next)); } catch (e) { }
                 setAlanKisiSuggestions(next);
@@ -303,7 +277,6 @@ export default function ServisNew(props) {
         </div>
       </div>
 
-      {/* Notlar - full width textarea */}
       <div className="form-control mb-6">
         <label className="label text-sm font-semibold text-slate-700 mb-3">Notlar (İsteğe Bağlı):</label>
         <textarea 

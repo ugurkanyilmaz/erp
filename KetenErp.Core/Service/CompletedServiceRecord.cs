@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace KetenErp.Core.Service
 {
@@ -19,6 +20,7 @@ namespace KetenErp.Core.Service
         public DateTime? GelisTarihi { get; set; }
 
         // When it was archived/completed
+        [Column(TypeName = "timestamp with time zone")]
         public DateTime CompletedAt { get; set; }
 
         // Serialized JSON of the full service record (includes operations, photos metadata, notes etc.)

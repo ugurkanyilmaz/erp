@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Collections.Generic;
 
 namespace KetenErp.Core.Service
@@ -9,6 +10,7 @@ namespace KetenErp.Core.Service
     public string? ServisTakipNo { get; set; }
         public string? UrunModeli { get; set; }
         public string? FirmaIsmi { get; set; }
+        [Column(TypeName = "timestamp with time zone")]
         public DateTime GelisTarihi { get; set; }
     // status of the record (e.g., "Kayıt Açıldı", "İşlemde", "Tamamlandı") persisted in DB
     public string? Durum { get; set; } = ServiceRecordStatus.KayitAcildi;

@@ -257,7 +257,7 @@ namespace KetenErp.Api.Controllers
             }
 
             // Tek bir PDF oluştur - tüm ürünlerle
-            var fileName = $"toplu_teklif_{DateTime.Now:yyyyMMddHHmmss}.pdf";
+            var fileName = $"toplu_teklif_{DateTime.UtcNow:yyyyMMddHHmmss}.pdf";
             var filePath = Path.Combine(exportsDir, fileName);
             var logoPath = Path.Combine(AppContext.BaseDirectory, "Services", "weblogo.jpg");
             

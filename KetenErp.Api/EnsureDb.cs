@@ -171,11 +171,27 @@ namespace KetenErp.Api
                         firmaismi TEXT,
                         urunmodeli TEXT,
                         gelistarihi TEXT,
-                        completedat TIMESTAMP NOT NULL,
+                        completedat TIMESTAMPTZ NOT NULL,
                         serializedrecordjson TEXT
                     );";
                 cmd.ExecuteNonQuery();
                 Console.WriteLine("Ensured CompletedServiceRecords table exists.");
+
+                using var fixCmd = conn.CreateCommand();
+                fixCmd.CommandText = @"
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name='completedservicerecords'
+          AND column_name='completedat'
+          AND data_type='timestamp without time zone'
+    ) THEN
+        ALTER TABLE completedservicerecords
+        ALTER COLUMN completedat TYPE timestamptz USING completedat AT TIME ZONE 'UTC';
+    END IF;
+END $$;";
+                fixCmd.ExecuteNonQuery();
             }
             catch (Exception ex)
             {
@@ -198,10 +214,26 @@ namespace KetenErp.Api
                         changedpartsjson TEXT,
                         serviceitemsjson TEXT,
                         yapankisi TEXT,
-                        createdat TIMESTAMP NOT NULL
+                        createdat TIMESTAMPTZ NOT NULL
                     );";
                 cmd.ExecuteNonQuery();
                 Console.WriteLine("Ensured ServiceTemplates table exists.");
+
+                using var fixCmd = conn.CreateCommand();
+                fixCmd.CommandText = @"
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name='servicetemplates'
+          AND column_name='createdat'
+          AND data_type='timestamp without time zone'
+    ) THEN
+        ALTER TABLE servicetemplates
+        ALTER COLUMN createdat TYPE timestamptz USING createdat AT TIME ZONE 'UTC';
+    END IF;
+END $$;";
+                fixCmd.ExecuteNonQuery();
             }
             catch (Exception ex)
             {
@@ -276,11 +308,27 @@ namespace KetenErp.Api
                         key TEXT NOT NULL,
                         value TEXT NOT NULL,
                         sortorder INTEGER,
-                        createdat TIMESTAMP NOT NULL,
+                        createdat TIMESTAMPTZ NOT NULL,
                         createdby TEXT
                     );";
                 cmd.ExecuteNonQuery();
                 Console.WriteLine("Ensured Suggestions table exists.");
+
+                using var fixCmd = conn.CreateCommand();
+                fixCmd.CommandText = @"
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name='suggestions'
+          AND column_name='createdat'
+          AND data_type='timestamp without time zone'
+    ) THEN
+        ALTER TABLE suggestions
+        ALTER COLUMN createdat TYPE timestamptz USING createdat AT TIME ZONE 'UTC';
+    END IF;
+END $$;";
+                fixCmd.ExecuteNonQuery();
             }
             catch (Exception ex)
             {
@@ -307,10 +355,26 @@ namespace KetenErp.Api
                         usetls BOOLEAN NOT NULL DEFAULT TRUE,
                         isactive BOOLEAN NOT NULL DEFAULT FALSE,
                         createdby TEXT,
-                        createdat TIMESTAMP NOT NULL
+                        createdat TIMESTAMPTZ NOT NULL
                     );";
                 cmd.ExecuteNonQuery();
                 Console.WriteLine("Ensured EmailAccounts table exists.");
+
+                using var fixCmd = conn.CreateCommand();
+                fixCmd.CommandText = @"
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name='emailaccounts'
+          AND column_name='createdat'
+          AND data_type='timestamp without time zone'
+    ) THEN
+        ALTER TABLE emailaccounts
+        ALTER COLUMN createdat TYPE timestamptz USING createdat AT TIME ZONE 'UTC';
+    END IF;
+END $$;";
+                fixCmd.ExecuteNonQuery();
             }
             catch (Exception ex)
             {
@@ -330,17 +394,115 @@ namespace KetenErp.Api
                         id SERIAL PRIMARY KEY,
                         token TEXT NOT NULL,
                         userid TEXT NOT NULL,
-                        expiresat TIMESTAMP NOT NULL,
-                        createdat TIMESTAMP NOT NULL,
-                        revokedat TIMESTAMP,
+                        expiresat TIMESTAMPTZ NOT NULL,
+                        createdat TIMESTAMPTZ NOT NULL,
+                        revokedat TIMESTAMPTZ,
                         replacedbytoken TEXT
                     );";
                 cmd.ExecuteNonQuery();
                 Console.WriteLine("Ensured RefreshTokens table exists.");
+
+                using var fixCmd = conn.CreateCommand();
+                fixCmd.CommandText = @"
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name='refreshtokens'
+          AND column_name='createdat'
+          AND data_type='timestamp without time zone'
+    ) THEN
+        ALTER TABLE refreshtokens
+        ALTER COLUMN createdat TYPE timestamptz USING createdat AT TIME ZONE 'UTC';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name='refreshtokens'
+          AND column_name='expiresat'
+          AND data_type='timestamp without time zone'
+    ) THEN
+        ALTER TABLE refreshtokens
+        ALTER COLUMN expiresat TYPE timestamptz USING expiresat AT TIME ZONE 'UTC';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name='refreshtokens'
+          AND column_name='revokedat'
+          AND data_type='timestamp without time zone'
+    ) THEN
+        ALTER TABLE refreshtokens
+        ALTER COLUMN revokedat TYPE timestamptz USING revokedat AT TIME ZONE 'UTC';
+    END IF;
+END $$;";
+                fixCmd.ExecuteNonQuery();
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Could not ensure RefreshTokens: {ex.Message}");
+            }
+
+            // Convert other timestamp columns that may exist without timezone
+            try
+            {
+                var conn = db.Database.GetDbConnection();
+                if (conn.State != System.Data.ConnectionState.Open)
+                    conn.Open();
+
+                using var fixCmd = conn.CreateCommand();
+                fixCmd.CommandText = @"
+DO $$
+BEGIN
+    -- ServiceRecords.GelisTarihi
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name='servicerecords'
+          AND column_name='gelistarihi'
+          AND data_type='timestamp without time zone'
+    ) THEN
+        ALTER TABLE servicerecords
+        ALTER COLUMN gelistarihi TYPE timestamptz USING gelistarihi AT TIME ZONE 'UTC';
+    END IF;
+
+    -- ServiceOperations.IslemBitisTarihi
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name='serviceoperations'
+          AND column_name='islembitistarihi'
+          AND data_type='timestamp without time zone'
+    ) THEN
+        ALTER TABLE serviceoperations
+        ALTER COLUMN islembitistarihi TYPE timestamptz USING islembitistarihi AT TIME ZONE 'UTC';
+    END IF;
+
+    -- ServiceRecordPhotos.CreatedAt
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name='servicerecordphotos'
+          AND column_name='createdat'
+          AND data_type='timestamp without time zone'
+    ) THEN
+        ALTER TABLE servicerecordphotos
+        ALTER COLUMN createdat TYPE timestamptz USING createdat AT TIME ZONE 'UTC';
+    END IF;
+
+    -- SentQuotes.SentAt
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name='sentquotes'
+          AND column_name='sentat'
+          AND data_type='timestamp without time zone'
+    ) THEN
+        ALTER TABLE sentquotes
+        ALTER COLUMN sentat TYPE timestamptz USING sentat AT TIME ZONE 'UTC';
+    END IF;
+END $$;";
+                fixCmd.ExecuteNonQuery();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Could not ensure additional timestamp columns: {ex.Message}");
             }
 
             // Roles
