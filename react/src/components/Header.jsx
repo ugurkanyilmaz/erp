@@ -1,16 +1,39 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { ChevronLeft, Bell } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
+
+function parseJwt(token) {
+  try {
+    const payload = token.split('.')[1];
+    const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    return JSON.parse(decodeURIComponent(escape(json)));
+  } catch {
+    return null;
+  }
+}
+
 export default function Header({ title, subtitle, IconComponent, showBack = false }) {
+  const [userName, setUserName] = useState('');
   const nav = useNavigate();
-  const { user, isAuthenticated, logout } = useAuth();
-  const userName = user?.name || '';
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      const payload = parseJwt(token);
+      // try common claim names
+      const name = payload?.unique_name || payload?.sub || payload?.name || payload?.preferred_username || '';
+      setUserName(name);
+    } else {
+      setUserName('');
+    }
+  }, []);
 
   const handleLogin = () => nav('/login');
-  const handleLogout = async () => {
-    await logout();
-    nav('/login', { replace: true });
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setUserName('');
+    // reload to refresh UI state
+    window.location.reload();
   };
 
   return (
@@ -47,7 +70,7 @@ export default function Header({ title, subtitle, IconComponent, showBack = fals
           </button>
 
           {/* Login area: show 'Giriş Yap' if not logged in, otherwise show user name and a logout button */}
-          {!isAuthenticated ? (
+          {!userName ? (
             <button onClick={handleLogin} className="btn btn-sm btn-outline">Giriş Yap</button>
           ) : (
             <div className="flex items-center gap-3">

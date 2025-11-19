@@ -1,5 +1,4 @@
 using System;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace KetenErp.Core.Service
 {
@@ -15,7 +14,6 @@ namespace KetenErp.Core.Service
         
         public string? YapanKisi { get; set; }
         
-        [Column(TypeName = "timestamp with time zone")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 }

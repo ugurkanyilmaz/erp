@@ -35,10 +35,10 @@ namespace KetenErp.Api.Services
             decimal kdvOrani = 0.20m;
             decimal kdvTutar = Math.Round(toplamTutar * kdvOrani, 2);
             decimal kdvliToplam = Math.Round(toplamTutar + kdvTutar, 2);
-            string belgeTarihi = DateTime.UtcNow.ToString("dd.MM.yyyy");
+            string belgeTarihi = DateTime.Now.ToString("dd.MM.yyyy");
             if (string.IsNullOrWhiteSpace(belgeNo))
             {
-                belgeNo = $"{DateTime.UtcNow:yyyyMMdd}-{DateTime.UtcNow:HHmmss}";
+                belgeNo = $"{DateTime.Now:yyyyMMdd}-{DateTime.Now:HHmmss}";
             }
 
             var doc = Document.Create(container =>

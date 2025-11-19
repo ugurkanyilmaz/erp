@@ -1,12 +1,45 @@
 import api from './api';
 
+function _normalizeDateValue(val) {
+  if (typeof val !== 'string') return val;
+  // If value already contains timezone info (Z or +hh:mm), leave it
+  if (/[Zz]$/.test(val) || /[+\-]\d{2}:\d{2}$/.test(val)) return val;
+  // Match YYYY-MM-DDTHH:MM or YYYY-MM-DDTHH:MM:SS
+  const m = val.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (!m) return val;
+  const y = +m[1], mo = +m[2] - 1, d = +m[3], hh = +m[4], mm = +m[5], ss = +(m[6] || 0);
+  // Create a local Date from components then convert to ISO (UTC)
+  const local = new Date(y, mo, d, hh, mm, ss);
+  return local.toISOString();
+}
+
+function _normalizeDatesOnPayload(obj) {
+  if (!obj || typeof obj !== 'object') return obj;
+  const out = Array.isArray(obj) ? [] : {};
+  for (const k of Object.keys(obj)) {
+    const v = obj[k];
+    // common date-like property names used in the project
+    if (/date|tarih|at|expires|created|completed|sent|bitis/i.test(k) && typeof v === 'string') {
+      out[k] = _normalizeDateValue(v);
+    } else if (v && typeof v === 'object') {
+      out[k] = _normalizeDatesOnPayload(v);
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
 export async function getServiceRecords() {
   const res = await api.get('/api/servicerecords');
   return res.data;
 }
 
 export async function createServiceRecord(payload) {
-  const res = await api.post('/api/servicerecords', payload);
+  // Normalize datetime-local strings (e.g. from <input type="datetime-local">)
+  // to full ISO UTC strings so backend receives explicit instants.
+  const toSend = _normalizeDatesOnPayload(payload);
+  const res = await api.post('/api/servicerecords', toSend);
   return res.data;
 }
 

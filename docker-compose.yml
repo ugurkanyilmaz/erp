@@ -130,13 +130,15 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Caddy reverse proxy; TLS Cloudflare üzerinde terminate ediliyor
+  # Caddy reverse proxy to handle automatic HTTPS using the root Caddyfile
   caddy:
     image: caddy:2-alpine
     container_name: ketenerp-caddy
     restart: always
     ports:
-      - "8443:80"      # Cloudflare origin HTTP port
+      - "80:80"        # HTTP (Let's Encrypt ACME challenge)
+      - "443:443"      # HTTPS
+      - "443:443/udp"  # HTTP/3
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
@@ -149,6 +151,7 @@ services:
       - frontend
     environment:
       - DOMAIN=${DOMAIN:-localhost}
+      - EMAIL=${CADDY_EMAIL:-admin@localhost}
 
 volumes:
   postgres_data:

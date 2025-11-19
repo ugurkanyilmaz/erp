@@ -42,13 +42,22 @@ namespace KetenErp.Infrastructure.Data
                     // Handle DateTime
                     if (value is DateTime dateTime)
                     {
+                        // If the incoming DateTime is Unspecified (common when browsers send
+                        // values from <input type="datetime-local">), treat it as LOCAL time
+                        // and convert to UTC. Previously Unspecified values were marked as
+                        // UTC without conversion which caused stored instants to be wrong.
                         if (dateTime.Kind == DateTimeKind.Unspecified)
                         {
-                            property.CurrentValue = DateTime.SpecifyKind(dateTime, DateTimeKind.Utc);
+                            property.CurrentValue = DateTime.SpecifyKind(dateTime, DateTimeKind.Local).ToUniversalTime();
                         }
                         else if (dateTime.Kind == DateTimeKind.Local)
                         {
                             property.CurrentValue = dateTime.ToUniversalTime();
+                        }
+                        else
+                        {
+                            // DateTimeKind.Utc — keep as-is
+                            property.CurrentValue = dateTime;
                         }
                     }
                 }
@@ -125,10 +134,11 @@ namespace KetenErp.Infrastructure.Data
                 {
                     if (property.ClrType == typeof(DateTime) || property.ClrType == typeof(DateTime?))
                     {
-                        if (string.IsNullOrEmpty(property.GetColumnType()))
-                        {
-                            property.SetColumnType("timestamp with time zone");
-                        }
+                        // Use Postgres timestamptz (timestamp with time zone) so stored values
+                        // represent an absolute instant. This avoids ambiguity when clients
+                        // send local datetimes. EF Core will still map to DateTime on CLR
+                        // side but the DB column will preserve timezone information.
+                        property.SetColumnType("timestamp with time zone");
                     }
                 }
             }

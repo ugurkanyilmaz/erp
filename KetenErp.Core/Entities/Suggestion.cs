@@ -1,5 +1,4 @@
 using System;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace KetenErp.Core.Entities
 {
@@ -11,7 +10,6 @@ namespace KetenErp.Core.Entities
         // suggestion value
         public string Value { get; set; } = string.Empty;
         public int? SortOrder { get; set; }
-        [Column(TypeName = "timestamp with time zone")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public string? CreatedBy { get; set; }
     }

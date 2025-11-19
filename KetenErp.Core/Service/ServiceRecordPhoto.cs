@@ -1,5 +1,4 @@
 using System;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace KetenErp.Core.Service
 {
@@ -10,7 +9,6 @@ namespace KetenErp.Core.Service
         public string? BelgeNo { get; set; }  // Belge numarasına göre fotoğrafları organize et
         public string? FileName { get; set; }
         public string? FilePath { get; set; }
-        [Column(TypeName = "timestamp with time zone")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // navigation

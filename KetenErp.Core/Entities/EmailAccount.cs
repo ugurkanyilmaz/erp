@@ -1,5 +1,4 @@
 using System;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace KetenErp.Core.Entities
 {
@@ -15,7 +14,6 @@ namespace KetenErp.Core.Entities
         public bool UseTls { get; set; } = true;
         public bool IsActive { get; set; } = false;
         public string? CreatedBy { get; set; }
-        [Column(TypeName = "timestamp with time zone")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 }

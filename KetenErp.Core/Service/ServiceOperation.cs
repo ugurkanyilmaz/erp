@@ -1,5 +1,4 @@
 using System;
-using System.ComponentModel.DataAnnotations.Schema;
 using System.Collections.Generic;
 
 namespace KetenErp.Core.Service
@@ -10,7 +9,6 @@ namespace KetenErp.Core.Service
         public int ServiceRecordId { get; set; }
         public ServiceRecord? ServiceRecord { get; set; }
 
-        [Column(TypeName = "timestamp with time zone")]
         public DateTime? IslemBitisTarihi { get; set; }
         public string? YapanKisi { get; set; }
 

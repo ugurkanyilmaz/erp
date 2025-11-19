@@ -1,7 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import authApi from '../hooks/authApi';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
   const [user, setUser] = useState('');
@@ -9,13 +8,6 @@ export default function Login() {
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(false);
   const nav = useNavigate();
-  const { setToken, isAuthenticated } = useAuth();
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      nav('/', { replace: true });
-    }
-  }, [isAuthenticated, nav]);
 
   const submit = async () => {
     setErr('');
@@ -23,7 +15,7 @@ export default function Login() {
     try {
       const res = await authApi.login(user, pwd);
       const token = res.token;
-      setToken(token);
+      localStorage.setItem('token', token);
       nav('/');
     } catch (e) {
       console.error(e);
