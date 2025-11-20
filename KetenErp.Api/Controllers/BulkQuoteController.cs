@@ -261,7 +261,9 @@ namespace KetenErp.Api.Controllers
             var filePath = Path.Combine(exportsDir, fileName);
             var logoPath = Path.Combine(AppContext.BaseDirectory, "Services", "weblogo.jpg");
             
-            byte[] pdf = TeklifPdfOlusturucu.Olustur(musteriAdi, tumUrunler, logoPath, null, belgeNoForPdf);
+            // Use public-facing base URL so generated PDFs contain customer-friendly links
+            var publicBaseUrl = "http://havalielaletleritamiri.com:8443";
+            byte[] pdf = TeklifPdfOlusturucu.Olustur(musteriAdi, tumUrunler, logoPath, null, belgeNoForPdf, req.SenderName, publicBaseUrl);
             await System.IO.File.WriteAllBytesAsync(filePath, pdf);
             exported.Add(filePath);
 

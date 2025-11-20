@@ -1,20 +1,18 @@
 version: '3.8'
 
 services:
+  # --- Veritabanı ---
   postgres:
     image: postgres:16-alpine
     container_name: ketenerp-postgres
     restart: always
     environment:
-      POSTGRES_DB: ketenerp
-      POSTGRES_USER: ${POSTGRES_USER:-keten_admin_usr}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-Kt3nErP@2024!Scr3tDB#Pwd92xYz}
-      # PostgreSQL performance tuning
+      POSTGRES_DB: ${POSTGRES_DB:-ketenerp}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_INITDB_ARGS: "-E UTF8 --locale=tr_TR.UTF-8"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    # PostgreSQL portunu dışarı açmıyoruz (güvenlik)
-    # Sadece Docker network içinden erişilebilir
     expose:
       - "5432"
     healthcheck:
@@ -22,146 +20,69 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
-    # Resource limits - Sunucunuza göre ayarlayın
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 2G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
     networks:
       - ketenerp-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
+  # --- Backend API ---
   api:
     build:
       context: .
       dockerfile: Dockerfile.api
     container_name: ketenerp-api
     restart: always
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Production
-      - ASPNETCORE_URLS=http://+:8080
-      - ConnectionStrings__DefaultConnection=Host=postgres;Database=ketenerp;Username=${POSTGRES_USER:-keten_admin_usr};Password=${POSTGRES_PASSWORD:-Kt3nErP@2024!Scr3tDB#Pwd92xYz};Maximum Pool Size=100;Timeout=30;Command Timeout=60
-      - Jwt__Key=${JWT_SECRET_KEY:-7mK9nP2qR5sT8vW1xZ4aC6bE0dF3gH7jL9mN2pQ5rS8tV1wX4yA6bC0dE3fG7hJ9k}
-      - Jwt__Issuer=KetenErp
-      - Jwt__Audience=KetenErpUsers
-      - Jwt__AccessTokenExpirationMinutes=720
-      - Jwt__RefreshTokenExpirationDays=30
-      # Performans ayarları
-      - DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
-      - DOTNET_gcServer=1
-      - COMPlus_ThreadPool_ForceMinWorkerThreads=100
-      - COMPlus_ThreadPool_ForceMaxWorkerThreads=500
-    ports:
-      - "5000:8080"
     depends_on:
       postgres:
         condition: service_healthy
-    volumes:
-      - api_uploads:/app/wwwroot
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    # Resource limits
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 2G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__DefaultConnection=Host=postgres;Database=${POSTGRES_DB:-ketenerp};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Maximum Pool Size=100;Timeout=30;Command Timeout=60
+      # JWT and application settings are loaded from environment (.env)
+      - Jwt__Key=${Jwt__Key}
+      - Jwt__Issuer=${Jwt__Issuer}
+      - Jwt__Audience=${Jwt__Audience}
+      - FrontendUrl=${FrontendUrl}
+    expose:
+      - "8080"
+    ports:
+      - "5000:8080"
     networks:
       - ketenerp-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "5"
 
+  # --- Frontend (Nginx) ---
   frontend:
     build:
       context: .
       dockerfile: Dockerfile.frontend
     container_name: ketenerp-frontend
     restart: always
-    environment:
-      # Nginx worker processları (CPU core sayınıza göre ayarlayın)
-      - NGINX_WORKER_PROCESSES=auto
-      - NGINX_WORKER_CONNECTIONS=1024
-    # When using Caddy as a reverse proxy, frontend should not bind host port 80 directly.
-    ports: []
     expose:
       - "80"
-    depends_on:
-      api:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost/ || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    # Resource limits
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 128M
     networks:
       - ketenerp-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
-  # Caddy reverse proxy (host entry port mapped to 8443 -> container 80)
+  # --- Reverse Proxy (Gateway) ---
   caddy:
     image: caddy:2-alpine
     container_name: ketenerp-caddy
     restart: always
     ports:
-      - "8443:80"      # Host entry port 8443 forwards to container HTTP 80
+      # Dış dünyaya açılan tek kapı burası (8443)
+      - "8443:8443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
       - caddy_config:/config
-      - caddy_logs:/var/log/caddy
-    networks:
-      - ketenerp-network
     depends_on:
       - api
       - frontend
-    environment:
-      - DOMAIN=${DOMAIN:-localhost}
-      - EMAIL=${CADDY_EMAIL:-admin@localhost}
+    networks:
+      - ketenerp-network
 
 volumes:
   postgres_data:
-    driver: local
-  api_uploads:
-    driver: local
   caddy_data:
-    driver: local
   caddy_config:
-    driver: local
-  caddy_logs:
-    driver: local
 
 networks:
   ketenerp-network:

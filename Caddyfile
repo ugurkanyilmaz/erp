@@ -1,16 +1,15 @@
 {
-    # No automatic HTTPS (we're serving HTTP only in this deployment)
+    # Otomatik HTTPS kapalı (İsteğin üzerine HTTP üzerinden 8443 kullanıyoruz)
     auto_https off
-    email admin@havalielaletleritamiri.com
+    admin off
 }
 
-# Combine localhost and configured domain into a single site matcher to
-# avoid ambiguous site definition errors when {$DOMAIN} defaults to localhost.
-10.10.10.3:8443, 31.223.18.233:8443, localhost, {$DOMAIN} {
+# Belirli IP'ler yerine tüm interface'lerde 8443 portunu dinle
+:8443 {
     encode gzip zstd
 
     header {
-        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        # Güvenlik headerları
         X-Frame-Options "SAMEORIGIN"
         X-Content-Type-Options "nosniff"
         X-XSS-Protection "1; mode=block"
@@ -18,26 +17,42 @@
         -Server
     }
 
+    # Health check
     handle /health {
         respond "OK" 200
     }
 
+    # API İstekleri -> Direkt .NET Container'a
     handle /api/* {
         reverse_proxy ketenerp-api:8080 {
-            # Caddy forwards forwarding headers by default; keep Host and real IP
             header_up Host {host}
             header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
         }
     }
 
+    # Static uploads (serve from API's wwwroot) -> yönlendir API container'a
+    handle /uploads/* {
+        reverse_proxy ketenerp-api:8080 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # Swagger (Opsiyonel)
     handle /swagger* {
         reverse_proxy ketenerp-api:8080
     }
 
+    # Diğer her şey (Frontend) -> Nginx Container'a
     handle {
         reverse_proxy ketenerp-frontend:80 {
             header_up Host {host}
             header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
         }
     }
 

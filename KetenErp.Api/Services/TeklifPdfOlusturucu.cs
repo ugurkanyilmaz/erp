@@ -28,7 +28,9 @@ namespace KetenErp.Api.Services
             QuestPDF.Settings.License = LicenseType.Community;
         }
 
-        public static byte[] Olustur(string musteriAdi, List<UrunIslem> urunler, string? logoYolu = null, string? genelNot = null, string? belgeNo = null, string? gonderenAdi = null)
+        // baseUrl: optional web base url (e.g. "http://example.com:8443").
+        // If provided, photo web links in the PDF will be printed as full URLs using this base.
+        public static byte[] Olustur(string musteriAdi, List<UrunIslem> urunler, string? logoYolu = null, string? genelNot = null, string? belgeNo = null, string? gonderenAdi = null, string? baseUrl = null)
         {
             decimal toplamTutar = urunler.Sum(u => u.Fiyat);
             // KDV hesaplama (%20)
@@ -333,10 +335,18 @@ namespace KetenErp.Api.Services
                                         if (!string.IsNullOrWhiteSpace(ph) && ph.StartsWith(wwwRoot, StringComparison.OrdinalIgnoreCase))
                                         {
                                             var rel = ph.Substring(wwwRoot.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Replace("\\", "/");
-                                            displayLink = "/" + rel;
+                                            // If a baseUrl is provided, emit a full absolute URL so customers don't see internal IPs
+                                            if (!string.IsNullOrWhiteSpace(baseUrl))
+                                            {
+                                                displayLink = baseUrl.TrimEnd('/') + "/" + rel;
+                                            }
+                                            else
+                                            {
+                                                displayLink = "/" + rel;
+                                            }
                                         }
+
                                         // Print the link as plain text (many PDF viewers auto-detect URLs). Also include original path in parens.
-                                        // Use slightly smaller font sizes so the block doesn't look too heavy.
                                         photoCol.Item().PaddingTop(4).Text(t =>
                                         {
                                             t.Span(displayLink).FontSize(8).FontColor("#1565C0");

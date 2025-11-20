@@ -18,6 +18,7 @@ obj/
 # Uploads and Runtime Files
 wwwroot/uploads/
 Logs/
+deployment/
 
 # OS
 .DS_Store

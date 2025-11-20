@@ -104,6 +104,8 @@ export default function IslemEkle(props) {
   const [hizmetSuggestions, setHizmetSuggestions] = useState([]);
   const [showHizmetSuggestions, setShowHizmetSuggestions] = useState(false);
   const hizmetRef = useRef(null);
+  const partsRef = useRef(null);
+  const [showPartSuggestions, setShowPartSuggestions] = useState(false);
 
   useEffect(() => {
     const key = 'ts_hizmet_suggestions';
@@ -134,6 +136,8 @@ export default function IslemEkle(props) {
 
   // Close hizmet suggestions when clicking outside
   useOutsideClick(hizmetRef, () => setShowHizmetSuggestions(false));
+  // Close part suggestions when clicking outside
+  useOutsideClick(partsRef, () => setShowPartSuggestions(false));
 
   // Define local handlers for hizmetEkle/hizmetSil and prefer props if provided
   const localHizmetEkle = () => {
@@ -511,70 +515,44 @@ export default function IslemEkle(props) {
           <div className="flex gap-3 mb-4">
             {sparePartsLoading ? (
               <div className="input input-bordered flex-1 rounded-xl flex items-center">Yükleniyor...</div>
-            ) : (filteredSpareParts && filteredSpareParts.length > 0) ? (
-              <select className="select select-bordered flex-1 rounded-xl" value={yeniParca.partName} onChange={(e) => setYeniParca({ ...yeniParca, partName: e.target.value })} disabled={!selectedRecordId}>
-                <option value="">-- Parça seçin --</option>
-                {filteredSpareParts.map(sp => (<option key={sp.id} value={sp.parcaNo || sp.partNumber || sp.parcaNo}>{sp.parcaNo}{sp.title ? ` — ${sp.title}` : ''}</option>))}
-              </select>
             ) : (
-              (() => {
-                // If product-specific parts exist, render an editable input with datalist so user can type or pick
-                if (filteredSpareParts && filteredSpareParts.length > 0) {
-                  return (
-                    <div className="flex-1">
-                      <div className="relative">
-                        <div className="select select-bordered flex items-center rounded-xl px-3">
-                          <input
-                            list={`product-${selectedProductId}-parts-list`}
-                            placeholder={selectedRecordId ? "Parça adı veya seçin" : "Önce kayıt seçin"}
-                            className="flex-1 bg-transparent border-0 outline-none py-2"
-                            value={yeniParca.partName}
-                            onChange={(e) => setYeniParca({ ...yeniParca, partName: e.target.value })}
-                            disabled={!selectedRecordId}
-                          />
-                          <svg className="w-4 h-4 text-slate-500 ml-2" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                        </div>
-                        <datalist id={`product-${selectedProductId}-parts-list`}>
-                          {filteredSpareParts.map(sp => (
-                            <option key={sp.id} value={sp.parcaNo || sp.partNumber || sp.title || sp.id} />
-                          ))}
-                        </datalist>
-                      </div>
-                    </div>
-                  );
-                }
+              // New behavior: only show spare parts that match the selected product SKU/productId.
+              // If no product selected or there are no matching parts, show a disabled input or free-text input
+              <div className="relative flex-1" ref={partsRef}>
+                <input
+                  type="text"
+                  placeholder={selectedRecordId ? (filteredSpareParts && filteredSpareParts.length > 0 ? 'Parça seçin veya ara' : 'Bu ürüne ait parça yok') : 'Önce kayıt seçin'}
+                  className={`input input-bordered w-full rounded-xl ${!selectedRecordId ? 'bg-slate-100' : ''}`}
+                  value={yeniParca.partName}
+                  onChange={(e) => { setYeniParca({ ...yeniParca, partName: e.target.value }); if (filteredSpareParts && filteredSpareParts.length > 0) setShowPartSuggestions(true); }}
+                  onFocus={() => { if (filteredSpareParts && filteredSpareParts.length > 0) setShowPartSuggestions(true); }}
+                  disabled={!selectedRecordId}
+                />
 
-                const independentParts = sparePartsFromOutlet.filter(s => !s.productId);
-                if (independentParts && independentParts.length > 0) {
-                  return (
-                    <div className="flex-1">
-                      <div className="relative">
-                        <div className="select select-bordered flex items-center rounded-xl px-3">
-                          <input
-                            list="independent-parts-list"
-                            placeholder={selectedRecordId ? "Parça adı veya seçin" : "Önce kayıt seçin"}
-                            className="flex-1 bg-transparent border-0 outline-none py-2"
-                            value={yeniParca.partName}
-                            onChange={(e) => setYeniParca({ ...yeniParca, partName: e.target.value })}
-                            disabled={!selectedRecordId}
-                          />
-                          <svg className="w-4 h-4 text-slate-500 ml-2" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                        </div>
-                        <datalist id="independent-parts-list">
-                          {independentParts.map(sp => (
-                            <option key={sp.id} value={sp.parcaNo || sp.title || sp.partNumber || sp.id} />
-                          ))}
-                        </datalist>
-                      </div>
-                    </div>
-                  );
-                }
-
-                // no independent parts list available -> fallback to free text
-                return (
-                  <input type="text" placeholder={selectedRecordId ? "Parça adı (manuel)" : "Önce kayıt seçin"} className="input input-bordered flex-1 rounded-xl" value={yeniParca.partName} onChange={(e) => setYeniParca({ ...yeniParca, partName: e.target.value })} disabled={!selectedRecordId} />
-                );
-              })()
+                {showPartSuggestions && filteredSpareParts && filteredSpareParts.length > 0 && (
+                  <ul className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-52 overflow-auto z-50">
+                    {filteredSpareParts.filter(sp => {
+                      const q = (yeniParca.partName || '').toLowerCase();
+                      return !q || ((sp.parcaNo || sp.partNumber || sp.title || '') + '').toLowerCase().includes(q);
+                    }).map((sp) => (
+                      <li
+                        key={sp.id}
+                        className="px-4 py-2 hover:bg-slate-50 cursor-pointer text-sm"
+                        onMouseDown={(ev) => { ev.preventDefault(); setYeniParca({ ...yeniParca, partName: sp.parcaNo || sp.partNumber || sp.title || `${sp.id}` }); setShowPartSuggestions(false); }}
+                      >
+                        <div className="font-medium">{sp.parcaNo || sp.partNumber || sp.title || `#${sp.id}`}</div>
+                        {sp.title && <div className="text-xs text-slate-500">{sp.title}</div>}
+                      </li>
+                    ))}
+                    {filteredSpareParts.filter(sp => {
+                      const q = (yeniParca.partName || '').toLowerCase();
+                      return !q || ((sp.parcaNo || sp.partNumber || sp.title || '') + '').toLowerCase().includes(q);
+                    }).length === 0 && (
+                      <li className="px-4 py-2 text-slate-500 text-sm">Eşleşen parça yok</li>
+                    )}
+                  </ul>
+                )}
+              </div>
             )}
 
             <input type="number" min={1} className="input input-bordered w-28 rounded-xl" value={yeniParca.quantity} onChange={(e) => setYeniParca({ ...yeniParca, quantity: Number(e.target.value) })} />
@@ -1038,33 +1016,40 @@ export default function IslemEkle(props) {
               </p>
               
               {/* QR Code */}
-              <div className="flex justify-center mb-6">
-                <div className="bg-white p-4 rounded-xl border-4 border-slate-200 inline-block">
-                  <QRCodeSVG 
-                    value={`https://havalielaletleritamiri.com/teknik-servis/foto`}
-                    size={200}
-                    level="H"
-                    includeMargin={true}
-                  />
-                </div>
-              </div>
+              {(() => {
+                // Build foto link using same origin so QR/link reflects current access (IP + port)
+                const fotoLink = (typeof window !== 'undefined') ? `${window.location.protocol}//${window.location.host}/teknik-servis/foto` : 'https://havalielaletleritamiri.com/teknik-servis/foto';
+                return (
+                  <>
+                    <div className="flex justify-center mb-6">
+                      <div className="bg-white p-4 rounded-xl border-4 border-slate-200 inline-block">
+                        <QRCodeSVG 
+                          value={fotoLink}
+                          size={200}
+                          level="H"
+                          includeMargin={true}
+                        />
+                      </div>
+                    </div>
 
-              {/* Link */}
-              <div className="mb-6">
-                <div className="text-xs text-slate-500 mb-2">Veya bu linki açın:</div>
-                <div className="bg-slate-50 rounded-lg p-3 text-sm font-mono text-indigo-600 break-all border border-slate-200">
-                  https://havalielaletleritamiri.com/teknik-servis/foto
-                </div>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(`https://havalielaletleritamiri.com/teknik-servis/foto`);
-                    try { outlet.setNotification?.({ type: 'success', message: 'Link kopyalandı!' }); } catch (e) { /* ignore */ }
-                  }}
-                  className="mt-2 text-xs text-indigo-600 hover:text-indigo-700 font-medium"
-                >
-                  📋 Linki Kopyala
-                </button>
-              </div>
+                    {/* Link */}
+                    <div className="mb-6">
+                      <div className="text-xs text-slate-500 mb-2">Veya bu linki açın:</div>
+                      <div className="bg-slate-50 rounded-lg p-3 text-sm font-mono text-indigo-600 break-all border border-slate-200">
+                        {fotoLink}
+                      </div>
+                      <button
+                        onClick={() => {
+                          try { navigator.clipboard.writeText(fotoLink); outlet.setNotification?.({ type: 'success', message: 'Link kopyalandı!' }); } catch (e) { /* ignore */ }
+                        }}
+                        className="mt-2 text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+                      >
+                        📋 Linki Kopyala
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
 
               {/* Instructions */}
               <div className="bg-indigo-50 rounded-lg p-4 mb-6 text-left">

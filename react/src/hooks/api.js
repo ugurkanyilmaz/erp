@@ -8,18 +8,12 @@ import axios from 'axios';
 // and appending the API port 5000 so mobile clients work when the frontend is served from
 // http://<machine-ip>:5173 or in production from the same origin.
 const defaultApiPort = '5000';
-const base = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? (() => {
-  try {
-    // Use hostname instead of origin to avoid the port confusion
-    // e.g. if frontend is at http://192.168.141.29:5173, we want http://192.168.141.29:5000
-    // In production (Docker), both will be on the same host
-    const protocol = window.location.protocol; // http: or https:
-    const hostname = window.location.hostname; // 192.168.141.29 or localhost
-    return `${protocol}//${hostname}:${defaultApiPort}`;
-  } catch {
-    return 'http://localhost:5000';
-  }
-})() : 'http://localhost:5000');
+// Prefer VITE_API_URL; otherwise use same-origin (protocol + host).
+// Using `window.location.host` keeps any explicit port (e.g. :8443) so the
+// frontend will call the API through the same origin and let the reverse
+// proxy (Caddy) handle routing to the backend. This avoids cross-origin
+// requests to port 5000 which may be blocked by firewalls.
+const base = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}` : `http://localhost:${defaultApiPort}`);
 
 const api = axios.create({
   baseURL: base,

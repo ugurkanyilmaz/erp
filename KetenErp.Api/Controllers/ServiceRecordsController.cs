@@ -148,6 +148,8 @@ namespace KetenErp.Api.Controllers
         }
 
         // List photos for a service record
+        // Allow anonymous access so mobile/photo upload flow can view uploaded images
+        [AllowAnonymous]
         [HttpGet("{id:int}/photos")]
         public async Task<IActionResult> GetPhotos(int id)
         {
