@@ -5,7 +5,8 @@ param(
     [switch]$Build,
     [switch]$Down,
     [switch]$Logs,
-    [switch]$Restart
+    [switch]$Restart,
+    [switch]$Reset
 )
 
 Write-Host "=== Keten ERP Docker Deployment ===" -ForegroundColor Cyan
@@ -43,6 +44,23 @@ if ($Restart) {
     docker-compose restart
     Write-Host "✅ Tamamlandı!" -ForegroundColor Green
     exit
+}
+
+# Reset - HER ŞEYİ SİL (Volume dahil)
+if ($Reset) {
+    Write-Host "⚠️  DİKKAT: Bu işlem veritabanı dahil TÜM VERİLERİ SİLECEK!" -ForegroundColor Red
+    Write-Host "⚠️  Volume'ler silinecek: postgres_data, uploads_data, caddy_data..." -ForegroundColor Red
+    $confirm = Read-Host "Emin misiniz? (yes yazın)"
+    
+    if ($confirm -eq "yes") {
+        Write-Host "🗑️  Tüm veriler siliniyor..." -ForegroundColor Red
+        docker-compose down -v
+        Write-Host "✅ Temizlik tamamlandı. Şimdi 'deploy.ps1' ile yeniden başlatabilirsiniz." -ForegroundColor Green
+        exit
+    } else {
+        Write-Host "İşlem iptal edildi." -ForegroundColor Yellow
+        exit
+    }
 }
 
 # Logs - Logları göster

@@ -9,6 +9,12 @@ export default function ServiceDetailModal({ open, onClose, record, operations =
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState('');
 
+  // Currency and Grand Total state
+  const [selectedCurrency, setSelectedCurrency] = useState('TRY');
+  const [useGrandTotal, setUseGrandTotal] = useState(false);
+  const [grandTotalValue, setGrandTotalValue] = useState('');
+  const [grandTotalDiscount, setGrandTotalDiscount] = useState('');
+
   useEffect(() => {
     let mounted = true;
     if (!open || !record?.id) {
@@ -20,8 +26,19 @@ export default function ServiceDetailModal({ open, onClose, record, operations =
     }
     // Initialize notes value
     setNotesValue(record?.notlar || '');
+    // Initialize Grand Total values
+    if (record?.grandTotalOverride) {
+      setUseGrandTotal(true);
+      setGrandTotalValue(record.grandTotalOverride);
+    } else {
+      setUseGrandTotal(false);
+      setGrandTotalValue('');
+    }
+    setGrandTotalDiscount(record?.grandTotalDiscount || '');
+    if (record?.currency) setSelectedCurrency(record.currency);
+
     setEditingNotes(false);
-    
+
     setPhotosLoading(true);
     setPhotosError('');
     serviceApi.getServiceRecordPhotos(record.id)
@@ -33,7 +50,30 @@ export default function ServiceDetailModal({ open, onClose, record, operations =
 
   // allow using outlet-provided notification setter as fallback
   const outlet = useOutletContext?.() ?? {};
-  const setNotification = propSetNotification ?? outlet.setNotification ?? (() => {});
+  const setNotification = propSetNotification ?? outlet.setNotification ?? (() => { });
+
+  // Helper function to get currency symbol
+  const getCurrencySymbol = () => {
+    switch (selectedCurrency) {
+      case 'EUR': return '€';
+      case 'USD': return '$';
+      case 'TRY': return '₺';
+      default: return '₺';
+    }
+  };
+
+  // Helper to format currency with symbol at the beginning
+  const formatCurrency = (amount) => {
+    const symbol = getCurrencySymbol();
+    return `${symbol}${Number(amount || 0).toFixed(2)}`;
+  };
+
+  // Calculate final grand total after discount
+  const calculateFinalGrandTotal = () => {
+    const total = parseFloat(grandTotalValue) || 0;
+    const discount = parseFloat(grandTotalDiscount) || 0;
+    return total * (1 - discount / 100);
+  };
 
   if (!open) return null;
 
@@ -79,13 +119,13 @@ export default function ServiceDetailModal({ open, onClose, record, operations =
               <div className="font-medium">{record?.durum}</div>
             </div>
           </div>
-          
+
           {/* Notlar section with edit capability */}
           <div className="mt-4 p-4 bg-slate-50 rounded-lg">
             <div className="flex items-center justify-between mb-2">
               <div className="text-sm font-semibold text-slate-700">Notlar</div>
               {canEdit && !editingNotes && (
-                <button 
+                <button
                   className="btn btn-xs btn-ghost"
                   onClick={() => setEditingNotes(true)}
                 >Düzenle</button>
@@ -93,14 +133,14 @@ export default function ServiceDetailModal({ open, onClose, record, operations =
             </div>
             {editingNotes ? (
               <div>
-                <textarea 
+                <textarea
                   className="textarea textarea-bordered w-full min-h-[100px]"
                   value={notesValue}
                   onChange={(e) => setNotesValue(e.target.value)}
                   placeholder="Notlar..."
                 />
                 <div className="flex gap-2 mt-2">
-                  <button 
+                  <button
                     className="btn btn-sm btn-primary"
                     onClick={async () => {
                       if (typeof onUpdateRecord === 'function') {
@@ -113,7 +153,7 @@ export default function ServiceDetailModal({ open, onClose, record, operations =
                       }
                     }}
                   >Kaydet</button>
-                  <button 
+                  <button
                     className="btn btn-sm btn-ghost"
                     onClick={() => {
                       setNotesValue(record?.notlar || '');
@@ -126,6 +166,126 @@ export default function ServiceDetailModal({ open, onClose, record, operations =
               <div className="text-sm text-slate-700 whitespace-pre-wrap">{record?.notlar || 'Not eklenmemiş.'}</div>
             )}
           </div>
+
+          {/* Currency and Grand Total Controls (only show when showPrices is true) */}
+          {showPrices && (
+            <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="text-sm font-semibold mb-3 text-blue-900">Fiyatlandırma Ayarları</div>
+
+              {/* Currency Selection */}
+              <div className="mb-3">
+                <label className="text-xs text-slate-600 mb-1 block">Para Birimi</label>
+                <select
+                  className="select select-bordered select-sm w-full"
+                  value={selectedCurrency}
+                  onChange={(e) => setSelectedCurrency(e.target.value)}
+                  disabled={!canEdit}
+                >
+                  <option value="TRY">TRY (₺)</option>
+                  <option value="USD">USD ($)</option>
+                  <option value="EUR">EUR (€)</option>
+                </select>
+              </div>
+
+              {/* Grand Total Checkbox */}
+              <div className="mb-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-sm"
+                    checked={useGrandTotal}
+                    onChange={(e) => setUseGrandTotal(e.target.checked)}
+                    disabled={!canEdit}
+                  />
+                  <span className="text-sm font-medium">Genel Toplam Belirle</span>
+                </label>
+                <div className="text-xs text-slate-500 mt-1">İşlemlere tek tek fiyat vermek yerine genel toplam belirle</div>
+              </div>
+
+              {/* Grand Total Input (shown when checked) */}
+              {useGrandTotal && (
+                <div className="space-y-3 p-3 bg-white rounded border border-blue-300">
+                  <div>
+                    <label className="text-xs text-slate-600 mb-1 block">Genel Toplam</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        pattern="[0-9]*[.,]?[0-9]*"
+                        className="input input-bordered input-sm flex-1"
+                        placeholder="0.00"
+                        value={grandTotalValue}
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(',', '.');
+                          setGrandTotalValue(raw);
+                        }}
+                        disabled={!canEdit}
+                      />
+                      <span className="text-sm font-medium">{getCurrencySymbol()}</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-slate-600 mb-1 block">İndirim (%)</label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      pattern="[0-9]*[.,]?[0-9]*"
+                      className="input input-bordered input-sm w-full"
+                      placeholder="0"
+                      value={grandTotalDiscount}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(',', '.');
+                        setGrandTotalDiscount(raw);
+                      }}
+                      disabled={!canEdit}
+                    />
+                  </div>
+
+                  {grandTotalValue && (
+                    <div className="pt-2 border-t border-slate-200">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-slate-600">Ödenecek Tutar:</span>
+                        <span className="text-sm font-bold text-green-700">
+                          {formatCurrency(calculateFinalGrandTotal())}
+                        </span>
+                      </div>
+                      {grandTotalDiscount && parseFloat(grandTotalDiscount) > 0 && (
+                        <div className="text-xs text-slate-500 mt-1">
+                          İndirim: %{parseFloat(grandTotalDiscount).toFixed(0)}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="mt-2 flex justify-end">
+                    <button
+                      className="btn btn-xs btn-primary"
+                      onClick={async () => {
+                        if (typeof onUpdateRecord === 'function') {
+                          try {
+                            await onUpdateRecord(record.id, {
+                              ...record,
+                              notlar: notesValue, // Include notes in the update
+                              currency: selectedCurrency,
+                              grandTotalOverride: useGrandTotal ? (parseFloat(grandTotalValue) || 0) : null,
+                              grandTotalDiscount: useGrandTotal ? (parseFloat(grandTotalDiscount) || 0) : null
+                            });
+                            setNotification({ type: 'success', message: 'Ayarlar ve Notlar kaydedildi.' });
+                          } catch (e) {
+                            console.error('Could not update grand total settings', e);
+                            setNotification({ type: 'error', message: 'Kaydetme başarısız oldu.' });
+                          }
+                        }
+                      }}
+                    >
+                      Fiyatlandırmayı Kaydet
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div>
             <div className="text-sm font-semibold mb-2">İşlemler ({operations.length})</div>
@@ -203,74 +363,89 @@ export default function ServiceDetailModal({ open, onClose, record, operations =
                             <div className="font-medium">{p.partName}</div>
                             <div className="text-xs text-slate-500">Adet: {p.quantity}</div>
                           </div>
-                          {showPrices && (
+                          {showPrices && !useGrandTotal && (
                             <div className="flex items-center gap-2">
-                              <input 
-                                type="text" 
-                                inputMode="decimal"
-                                pattern="[0-9]*[.,]?[0-9]*"
-                                step="0.01" 
-                                className="input input-bordered w-32 placeholder:text-slate-400" 
-                                placeholder="0.00"
-                                value={(p.listPrice ?? p.price) === 0 ? '' : (p.listPrice ?? p.price ?? '')}
-                                onFocus={(e) => {
-                                  if ((p.listPrice ?? p.price ?? 0) === 0) {
-                                    const newOp = { ...op, changedParts: (op.changedParts || []).map((pp, i) => i === pIdx ? ({ ...pp, listPrice: '' }) : pp) };
-                                    onUpdateOperation(op.id, newOp);
-                                  }
-                                }}
-                                onBlur={(e) => {
-                                  const currentVal = op.changedParts?.[pIdx]?.listPrice ?? op.changedParts?.[pIdx]?.price;
-                                  if (currentVal === '' || currentVal === null || currentVal === undefined) {
-                                    const newOp = { ...op, changedParts: (op.changedParts || []).map((pp, i) => i === pIdx ? ({ ...pp, listPrice: 0 }) : pp) };
-                                    onUpdateOperation(op.id, newOp);
-                                  }
-                                }}
-                                onChange={(e) => {
-                                  const raw = e.target.value.replace(',', '.');
-                                  const v = raw === '' ? '' : (isNaN(Number(raw)) ? '' : parseFloat(raw));
-                                  if (typeof onUpdateOperation === 'function') {
-                                    const newOp = { ...op, changedParts: (op.changedParts || []).map((pp, i) => i === pIdx ? ({ ...pp, listPrice: v }) : pp) };
-                                    onUpdateOperation(op.id, newOp);
-                                  }
-                                }} 
-                                disabled={!canEdit} 
-                              />
-                              <input 
-                                type="text" 
-                                inputMode="decimal"
-                                pattern="[0-9]*[.,]?[0-9]*"
-                                step="0.01" 
-                                className="input input-bordered w-20 placeholder:text-slate-400" 
-                                placeholder="0"
-                                value={p.discountPercent === 0 ? '' : (p.discountPercent ?? '')}
-                                onFocus={(e) => {
-                                  if ((p.discountPercent ?? 0) === 0) {
-                                    const newOp = { ...op, changedParts: (op.changedParts || []).map((pp, i) => i === pIdx ? ({ ...pp, discountPercent: '' }) : pp) };
-                                    onUpdateOperation(op.id, newOp);
-                                  }
-                                }}
-                                onBlur={(e) => {
-                                  const currentVal = op.changedParts?.[pIdx]?.discountPercent;
-                                  if (currentVal === '' || currentVal === null || currentVal === undefined) {
-                                    const newOp = { ...op, changedParts: (op.changedParts || []).map((pp, i) => i === pIdx ? ({ ...pp, discountPercent: 0 }) : pp) };
-                                    onUpdateOperation(op.id, newOp);
-                                  }
-                                }}
-                                onChange={(e) => {
-                                  const raw = e.target.value.replace(',', '.');
-                                  const d = raw === '' ? '' : (isNaN(Number(raw)) ? '' : parseFloat(raw));
-                                  if (typeof onUpdateOperation === 'function') {
-                                    const newOp = { ...op, changedParts: (op.changedParts || []).map((pp, i) => i === pIdx ? ({ ...pp, discountPercent: d }) : pp) };
-                                    onUpdateOperation(op.id, newOp);
-                                  }
-                                }} 
-                                disabled={!canEdit} 
-                              />
-                              <div className="text-sm font-semibold">
-                                {( (Number(p.listPrice ?? p.price ?? 0) * (1 - (Number(p.discountPercent ?? 0) / 100))) ).toFixed(2)} ₺
+                              <div className="flex flex-col items-end">
+                                <label className="text-xs text-slate-600 mb-1">Liste Fiyatı ({getCurrencySymbol()})</label>
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  pattern="[0-9]*[.,]?[0-9]*"
+                                  step="0.01"
+                                  className="input input-bordered w-32 placeholder:text-slate-400"
+                                  placeholder="0.00"
+                                  value={(p.listPrice ?? p.price) === 0 ? '' : (p.listPrice ?? p.price ?? '')}
+                                  onFocus={(e) => {
+                                    if ((p.listPrice ?? p.price ?? 0) === 0) {
+                                      const newOp = { ...op, changedParts: (op.changedParts || []).map((pp, i) => i === pIdx ? ({ ...pp, listPrice: '' }) : pp) };
+                                      onUpdateOperation(op.id, newOp);
+                                    }
+                                  }}
+                                  onBlur={(e) => {
+                                    const currentVal = op.changedParts?.[pIdx]?.listPrice ?? op.changedParts?.[pIdx]?.price;
+                                    if (currentVal === '' || currentVal === null || currentVal === undefined) {
+                                      const newOp = { ...op, changedParts: (op.changedParts || []).map((pp, i) => i === pIdx ? ({ ...pp, listPrice: 0 }) : pp) };
+                                      onUpdateOperation(op.id, newOp);
+                                    }
+                                  }}
+                                  onChange={(e) => {
+                                    const raw = e.target.value.replace(',', '.');
+                                    const v = raw === '' ? '' : (isNaN(Number(raw)) ? '' : parseFloat(raw));
+                                    if (typeof onUpdateOperation === 'function') {
+                                      const newOp = { ...op, changedParts: (op.changedParts || []).map((pp, i) => i === pIdx ? ({ ...pp, listPrice: v }) : pp) };
+                                      onUpdateOperation(op.id, newOp);
+                                    }
+                                  }}
+                                  disabled={!canEdit}
+                                />
+                              </div>
+                              <div className="flex flex-col items-end">
+                                <label className="text-xs text-slate-600 mb-1">İndirim (%)</label>
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  pattern="[0-9]*[.,]?[0-9]*"
+                                  step="0.01"
+                                  className="input input-bordered w-20 placeholder:text-slate-400"
+                                  placeholder="0"
+                                  value={p.discountPercent === 0 ? '' : (p.discountPercent ?? '')}
+                                  onFocus={(e) => {
+                                    if ((p.discountPercent ?? 0) === 0) {
+                                      const newOp = { ...op, changedParts: (op.changedParts || []).map((pp, i) => i === pIdx ? ({ ...pp, discountPercent: '' }) : pp) };
+                                      onUpdateOperation(op.id, newOp);
+                                    }
+                                  }}
+                                  onBlur={(e) => {
+                                    const currentVal = op.changedParts?.[pIdx]?.discountPercent;
+                                    if (currentVal === '' || currentVal === null || currentVal === undefined) {
+                                      const newOp = { ...op, changedParts: (op.changedParts || []).map((pp, i) => i === pIdx ? ({ ...pp, discountPercent: 0 }) : pp) };
+                                      onUpdateOperation(op.id, newOp);
+                                    }
+                                  }}
+                                  onChange={(e) => {
+                                    const raw = e.target.value.replace(',', '.');
+                                    const d = raw === '' ? '' : (isNaN(Number(raw)) ? '' : parseFloat(raw));
+                                    if (typeof onUpdateOperation === 'function') {
+                                      const newOp = { ...op, changedParts: (op.changedParts || []).map((pp, i) => i === pIdx ? ({ ...pp, discountPercent: d }) : pp) };
+                                      onUpdateOperation(op.id, newOp);
+                                    }
+                                  }}
+                                  disabled={!canEdit}
+                                />
+                              </div>
+                              <div className="flex flex-col items-end">
+                                <label className="text-xs text-slate-600 mb-1">Toplam Fiyat</label>
+                                <div className="text-sm font-semibold">
+                                  {formatCurrency((Number(p.listPrice ?? p.price ?? 0) * (1 - (Number(p.discountPercent ?? 0) / 100))))}
+                                  {p.discountPercent > 0 && (
+                                    <span className="text-xs text-slate-500 ml-2">(%{Number(p.discountPercent).toFixed(0)} ind.)</span>
+                                  )}
+                                </div>
                               </div>
                             </div>
+                          )}
+                          {showPrices && useGrandTotal && (
+                            <div className="text-xs text-slate-500 italic">Fiyat: Genel toplama dahil</div>
                           )}
                         </li>
                       ))}
@@ -284,74 +459,89 @@ export default function ServiceDetailModal({ open, onClose, record, operations =
                       {(op.serviceItems || []).map((s, sIdx) => (
                         <li key={s.id ?? sIdx} className="py-2 flex items-center justify-between">
                           <div className="font-medium">{s.name}</div>
-                          {showPrices && (
+                          {showPrices && !useGrandTotal && (
                             <div className="flex items-center gap-2">
-                              <input 
-                                type="text" 
-                                inputMode="decimal"
-                                pattern="[0-9]*[.,]?[0-9]*"
-                                step="0.01" 
-                                className="input input-bordered w-32 placeholder:text-slate-400" 
-                                placeholder="0.00"
-                                value={(s.listPrice ?? s.price) === 0 ? '' : (s.listPrice ?? s.price ?? '')}
-                                onFocus={(e) => {
-                                  if ((s.listPrice ?? s.price ?? 0) === 0) {
-                                    const newOp = { ...op, serviceItems: (op.serviceItems || []).map((ss, i) => i === sIdx ? ({ ...ss, listPrice: '' }) : ss) };
-                                    onUpdateOperation(op.id, newOp);
-                                  }
-                                }}
-                                onBlur={(e) => {
-                                  const currentVal = op.serviceItems?.[sIdx]?.listPrice ?? op.serviceItems?.[sIdx]?.price;
-                                  if (currentVal === '' || currentVal === null || currentVal === undefined) {
-                                    const newOp = { ...op, serviceItems: (op.serviceItems || []).map((ss, i) => i === sIdx ? ({ ...ss, listPrice: 0 }) : ss) };
-                                    onUpdateOperation(op.id, newOp);
-                                  }
-                                }}
-                                onChange={(e) => {
-                                  const raw = e.target.value.replace(',', '.');
-                                  const v = raw === '' ? '' : (isNaN(Number(raw)) ? '' : parseFloat(raw));
-                                  if (typeof onUpdateOperation === 'function') {
-                                    const newOp = { ...op, serviceItems: (op.serviceItems || []).map((ss, i) => i === sIdx ? ({ ...ss, listPrice: v }) : ss) };
-                                    onUpdateOperation(op.id, newOp);
-                                  }
-                                }} 
-                                disabled={!canEdit} 
-                              />
-                              <input 
-                                type="text" 
-                                inputMode="decimal"
-                                pattern="[0-9]*[.,]?[0-9]*"
-                                step="0.01" 
-                                className="input input-bordered w-20 placeholder:text-slate-400" 
-                                placeholder="0"
-                                value={s.discountPercent === 0 ? '' : (s.discountPercent ?? '')}
-                                onFocus={(e) => {
-                                  if ((s.discountPercent ?? 0) === 0) {
-                                    const newOp = { ...op, serviceItems: (op.serviceItems || []).map((ss, i) => i === sIdx ? ({ ...ss, discountPercent: '' }) : ss) };
-                                    onUpdateOperation(op.id, newOp);
-                                  }
-                                }}
-                                onBlur={(e) => {
-                                  const currentVal = op.serviceItems?.[sIdx]?.discountPercent;
-                                  if (currentVal === '' || currentVal === null || currentVal === undefined) {
-                                    const newOp = { ...op, serviceItems: (op.serviceItems || []).map((ss, i) => i === sIdx ? ({ ...ss, discountPercent: 0 }) : ss) };
-                                    onUpdateOperation(op.id, newOp);
-                                  }
-                                }}
-                                onChange={(e) => {
-                                  const raw = e.target.value.replace(',', '.');
-                                  const d = raw === '' ? '' : (isNaN(Number(raw)) ? '' : parseFloat(raw));
-                                  if (typeof onUpdateOperation === 'function') {
-                                    const newOp = { ...op, serviceItems: (op.serviceItems || []).map((ss, i) => i === sIdx ? ({ ...ss, discountPercent: d }) : ss) };
-                                    onUpdateOperation(op.id, newOp);
-                                  }
-                                }} 
-                                disabled={!canEdit} 
-                              />
-                              <div className="text-sm font-semibold">
-                                {( (Number(s.listPrice ?? s.price ?? 0) * (1 - (Number(s.discountPercent ?? 0) / 100))) ).toFixed(2)} ₺
+                              <div className="flex flex-col items-end">
+                                <label className="text-xs text-slate-600 mb-1">Liste Fiyatı ({getCurrencySymbol()})</label>
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  pattern="[0-9]*[.,]?[0-9]*"
+                                  step="0.01"
+                                  className="input input-bordered w-32 placeholder:text-slate-400"
+                                  placeholder="0.00"
+                                  value={(s.listPrice ?? s.price) === 0 ? '' : (s.listPrice ?? s.price ?? '')}
+                                  onFocus={(e) => {
+                                    if ((s.listPrice ?? s.price ?? 0) === 0) {
+                                      const newOp = { ...op, serviceItems: (op.serviceItems || []).map((ss, i) => i === sIdx ? ({ ...ss, listPrice: '' }) : ss) };
+                                      onUpdateOperation(op.id, newOp);
+                                    }
+                                  }}
+                                  onBlur={(e) => {
+                                    const currentVal = op.serviceItems?.[sIdx]?.listPrice ?? op.serviceItems?.[sIdx]?.price;
+                                    if (currentVal === '' || currentVal === null || currentVal === undefined) {
+                                      const newOp = { ...op, serviceItems: (op.serviceItems || []).map((ss, i) => i === sIdx ? ({ ...ss, listPrice: 0 }) : ss) };
+                                      onUpdateOperation(op.id, newOp);
+                                    }
+                                  }}
+                                  onChange={(e) => {
+                                    const raw = e.target.value.replace(',', '.');
+                                    const v = raw === '' ? '' : (isNaN(Number(raw)) ? '' : parseFloat(raw));
+                                    if (typeof onUpdateOperation === 'function') {
+                                      const newOp = { ...op, serviceItems: (op.serviceItems || []).map((ss, i) => i === sIdx ? ({ ...ss, listPrice: v }) : ss) };
+                                      onUpdateOperation(op.id, newOp);
+                                    }
+                                  }}
+                                  disabled={!canEdit}
+                                />
+                              </div>
+                              <div className="flex flex-col items-end">
+                                <label className="text-xs text-slate-600 mb-1">İndirim (%)</label>
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  pattern="[0-9]*[.,]?[0-9]*"
+                                  step="0.01"
+                                  className="input input-bordered w-20 placeholder:text-slate-400"
+                                  placeholder="0"
+                                  value={s.discountPercent === 0 ? '' : (s.discountPercent ?? '')}
+                                  onFocus={(e) => {
+                                    if ((s.discountPercent ?? 0) === 0) {
+                                      const newOp = { ...op, serviceItems: (op.serviceItems || []).map((ss, i) => i === sIdx ? ({ ...ss, discountPercent: '' }) : ss) };
+                                      onUpdateOperation(op.id, newOp);
+                                    }
+                                  }}
+                                  onBlur={(e) => {
+                                    const currentVal = op.serviceItems?.[sIdx]?.discountPercent;
+                                    if (currentVal === '' || currentVal === null || currentVal === undefined) {
+                                      const newOp = { ...op, serviceItems: (op.serviceItems || []).map((ss, i) => i === sIdx ? ({ ...ss, discountPercent: 0 }) : ss) };
+                                      onUpdateOperation(op.id, newOp);
+                                    }
+                                  }}
+                                  onChange={(e) => {
+                                    const raw = e.target.value.replace(',', '.');
+                                    const d = raw === '' ? '' : (isNaN(Number(raw)) ? '' : parseFloat(raw));
+                                    if (typeof onUpdateOperation === 'function') {
+                                      const newOp = { ...op, serviceItems: (op.serviceItems || []).map((ss, i) => i === sIdx ? ({ ...ss, discountPercent: d }) : ss) };
+                                      onUpdateOperation(op.id, newOp);
+                                    }
+                                  }}
+                                  disabled={!canEdit}
+                                />
+                              </div>
+                              <div className="flex flex-col items-end">
+                                <label className="text-xs text-slate-600 mb-1">Toplam Fiyat</label>
+                                <div className="text-sm font-semibold">
+                                  {formatCurrency((Number(s.listPrice ?? s.price ?? 0) * (1 - (Number(s.discountPercent ?? 0) / 100))))}
+                                  {s.discountPercent > 0 && (
+                                    <span className="text-xs text-slate-500 ml-2">(%{Number(s.discountPercent).toFixed(0)} ind.)</span>
+                                  )}
+                                </div>
                               </div>
                             </div>
+                          )}
+                          {showPrices && useGrandTotal && (
+                            <div className="text-xs text-slate-500 italic">Fiyat: Genel toplama dahil</div>
                           )}
                         </li>
                       ))}

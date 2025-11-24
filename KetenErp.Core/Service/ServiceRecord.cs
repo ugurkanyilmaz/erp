@@ -15,6 +15,12 @@ namespace KetenErp.Core.Service
         public string? BelgeNo { get; set; }
         public string? AlanKisi { get; set; }
         public string? Notlar { get; set; }
+        // Currency for quote generation (USD, EUR, TRY)
+        public string? Currency { get; set; }
+        // Optional override for grand total pricing
+        public decimal? GrandTotalOverride { get; set; }
+        // Optional discount percentage for grand total override
+        public decimal? GrandTotalDiscount { get; set; }
 
         public ICollection<ServiceOperation> Operations { get; set; } = new List<ServiceOperation>();
     }

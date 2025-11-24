@@ -3,6 +3,7 @@ import Header from '../components/Header';
 import { Settings } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import API_BASE_URL from '../config/api';
+import api from '../hooks/api';
 
 function makeId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
 
@@ -24,15 +25,11 @@ export default function SettingsEmail() {
     try {
       setLoading(true);
       setError('');
-  const res = await fetch(`${API_BASE}/api/settings/emailaccounts`);
-      if (res.ok) {
-        const data = await res.json();
-        setAccounts(data || []);
-      } else {
-        setError(`Hesaplar yüklenemedi: ${res.status} ${res.statusText}`);
-      }
+      const res = await api.get('/api/settings/emailaccounts');
+      const data = res?.data || [];
+      setAccounts(data);
     } catch (e) {
-      setError(`Bağlantı hatası: ${e.message}`);
+      setError(`Bağlantı hatası: ${e?.message || e}`);
       console.error('Load accounts failed:', e);
     } finally {
       setLoading(false);
@@ -62,26 +59,16 @@ export default function SettingsEmail() {
     const a = { name, host, port, userName: user, encryptedPassword: encodedPass, fromAddress: from, useTls: tls, isActive: false };
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/settings/emailaccounts`, { 
-          method: 'POST', 
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
-          }, 
-          body: JSON.stringify(a) 
-        });
-        
-        if (res.ok) {
-          const created = await res.json();
+        const res = await api.post('/api/settings/emailaccounts', a);
+        if (res.status === 200) {
           alert('E-posta hesabı başarıyla veritabanına kaydedildi!');
           await loadAccounts(); // Reload from DB
         } else {
-          const errText = await res.text();
-          alert(`Hata: ${res.status} - ${errText}`);
+          alert(`Hata: ${res.status} - ${res?.data || ''}`);
         }
-      } catch (e) { 
+      } catch (e) {
         console.error('Could not save email account', e);
-        alert(`Kaydetme hatası: ${e.message}`);
+        alert(`Kaydetme hatası: ${e?.message || e}`);
       }
     })();
     
@@ -99,18 +86,15 @@ export default function SettingsEmail() {
     if (!confirm('Bu e-posta hesabını silmek istediğinize emin misiniz?')) return;
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/settings/emailaccounts/${id}`, { 
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` }
-        });
-        if (res.ok || res.status === 204) {
+        const res = await api.delete(`/api/settings/emailaccounts/${id}`);
+        if (res.status === 200 || res.status === 204) {
           await loadAccounts();
           alert('Hesap silindi.');
         } else {
           alert(`Silme hatası: ${res.status}`);
         }
-      } catch (e) { 
-        alert(`Hata: ${e.message}`);
+      } catch (e) {
+        alert(`Hata: ${e?.message || e}`);
       }
     })();
   };
@@ -118,18 +102,15 @@ export default function SettingsEmail() {
   const setActive = (id) => {
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/settings/emailaccounts/${id}/activate`, { 
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` }
-        });
-        if (res.ok) {
+        const res = await api.post(`/api/settings/emailaccounts/${id}/activate`);
+        if (res.status === 200) {
           await loadAccounts();
           alert('Hesap aktif edildi.');
         } else {
           alert(`Aktivasyon hatası: ${res.status}`);
         }
-      } catch (e) { 
-        alert(`Hata: ${e.message}`);
+      } catch (e) {
+        alert(`Hata: ${e?.message || e}`);
       }
     })();
   };
@@ -148,22 +129,15 @@ export default function SettingsEmail() {
     
     const payload = { ...acc, name: name.trim() || acc.name, host: host.trim() || acc.host, port: Number(port) || acc.port, fromAddress: from.trim() || acc.fromAddress };
     try {
-      const res = await fetch(`${API_BASE}/api/settings/emailaccounts/${id}`, { 
-        method: 'PUT', 
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
-        }, 
-        body: JSON.stringify(payload) 
-      });
-      if (res.ok) {
+      const res = await api.put(`/api/settings/emailaccounts/${id}`, payload);
+      if (res.status === 200) {
         await loadAccounts();
         alert('Hesap güncellendi.');
       } else {
         alert(`Güncelleme hatası: ${res.status}`);
       }
-    } catch (e) { 
-      alert(`Hata: ${e.message}`);
+    } catch (e) {
+      alert(`Hata: ${e?.message || e}`);
     }
   };
 
@@ -239,11 +213,8 @@ export default function SettingsEmail() {
                       onClick={async () => {
                         try {
                           // Call diagnose endpoint for detailed step-by-step diagnostics
-                          const res = await fetch(`${API_BASE}/api/settings/emailaccounts/${acc.id}/diagnose`, {
-                            method: 'POST',
-                            headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` }
-                          });
-                          const data = await res.json();
+                          const res = await api.post(`/api/settings/emailaccounts/${acc.id}/diagnose`);
+                          const data = res.data;
                           
                           // Build a detailed message from diagnostic results
                           let message = '';

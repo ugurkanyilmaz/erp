@@ -25,9 +25,6 @@ builder.Services.AddResponseCompression(options =>
     options.EnableForHttps = true;
 });
 
-// Add memory cache
-builder.Services.AddMemoryCache();
-
 // Add HTTP client with retry policy
 builder.Services.AddHttpClient();
 
@@ -219,6 +216,11 @@ app.UseStaticFiles();
 try
 {
     var runtimeWww = Path.Combine(AppContext.BaseDirectory, "wwwroot");
+    if (!Directory.Exists(runtimeWww))
+    {
+        Directory.CreateDirectory(runtimeWww);
+    }
+
     if (Directory.Exists(runtimeWww))
     {
         app.UseStaticFiles(new StaticFileOptions

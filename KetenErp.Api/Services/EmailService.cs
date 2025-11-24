@@ -69,6 +69,12 @@ namespace KetenErp.Api.Services
                 Console.WriteLine($"[EmailService] Step 2: Testing SMTP SSL/TLS handshake...");
                 using var client = new MailKit.Net.Smtp.SmtpClient();
                 client.Timeout = 15000; // 15 seconds
+                // If the SMTP provider returns a certificate whose name doesn't match the host
+                // (common for some providers / custom certs), accept it to avoid connection drop.
+                // NOTE: this disables hostname verification for SMTP TLS handshake.
+                // NOTE: this disables hostname verification for SMTP TLS handshake.
+                client.ServerCertificateValidationCallback = (s, c, h, e) => true;
+                client.CheckCertificateRevocation = false;
                 
                 SecureSocketOptions socketOptions = SecureSocketOptions.Auto;
                 // Common patterns: port 465 = implicit SSL, port 587 = STARTTLS
@@ -411,6 +417,12 @@ namespace KetenErp.Api.Services
 
                 // Configure connect timeout and handshake behavior
                 client.Timeout = 30000; // 30 seconds
+
+                // Accept server certificate even if the hostname doesn't match the certificate.
+                // This prevents connection aborts when server certificate CN/SAN doesn't match.
+                // This prevents connection aborts when server certificate CN/SAN doesn't match.
+                client.ServerCertificateValidationCallback = (s, c, h, e) => true;
+                client.CheckCertificateRevocation = false;
 
                 // Choose the appropriate SecureSocketOptions - same logic as DiagnoseConnectionAsync
                 SecureSocketOptions socketOptions = SecureSocketOptions.Auto;

@@ -43,7 +43,7 @@ export default function SentQuotesPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-      <Header title="Gönderilen Teklifler" subtitle="Gönderilmiş tekliflerin listesi" IconComponent={Mail} showNew={false} showSearch={true} />
+      <Header title="Gönderilen Teklifler" subtitle="Gönderilmiş tekliflerin listesi" IconComponent={Mail} showNew={false} showSearch={true} showBack={true} />
 
       <main className="w-full px-6 py-8">
         <div className="bg-white rounded-xl shadow-lg p-6">
@@ -108,59 +108,59 @@ export default function SentQuotesPage() {
                       );
                     })
                     .map((quote) => (
-                    <tr key={quote.id}>
-                      <td>
-                        <div className="flex items-center gap-2">
-                          <Clock size={16} className="text-slate-400" />
-                          <span className="text-sm">{formatDate(quote.sentAt)}</span>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="badge badge-primary badge-outline">
-                          {quote.belgeNo || 'N/A'}
-                        </div>
-                      </td>
-                      <td>
-                        <div className="flex items-center gap-2">
-                          <User size={16} className="text-slate-400" />
-                          <span className="font-medium">{quote.customerName || '-'}</span>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="flex items-center gap-2">
-                          <Mail size={16} className="text-slate-400" />
-                          <span className="text-sm">{quote.recipientEmail || 'N/A'}</span>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="flex items-center gap-2">
-                          <FileText size={16} className="text-slate-400" />
-                          <span className="text-sm font-mono text-slate-600">
-                            {quote.pdfFileName || 'N/A'}
-                          </span>
-                          {quote.pdfFileName && (
-                            <div className="ml-4 flex items-center gap-2">
-                              <button
-                                className="btn btn-xs btn-outline"
-                                onClick={() => {
-                                  const url = buildApiUrl(`servicerecords/bulkquote/exports/${encodeURIComponent(quote.pdfFileName)}`);
-                                  // Open in new tab/window; server will serve inline PDF
-                                  window.open(url, '_blank');
-                                }}
-                              >
-                                Görüntüle
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td>
-                        <div className="text-xs text-slate-500">
-                          {quote.serviceRecordIds || 'N/A'}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                      <tr key={quote.id}>
+                        <td>
+                          <div className="flex items-center gap-2">
+                            <Clock size={16} className="text-slate-400" />
+                            <span className="text-sm">{formatDate(quote.sentAt)}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="badge badge-primary badge-outline">
+                            {quote.belgeNo || 'N/A'}
+                          </div>
+                        </td>
+                        <td>
+                          <div className="flex items-center gap-2">
+                            <User size={16} className="text-slate-400" />
+                            <span className="font-medium">{quote.customerName || '-'}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="flex items-center gap-2">
+                            <Mail size={16} className="text-slate-400" />
+                            <span className="text-sm">{quote.recipientEmail || 'N/A'}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="flex items-center gap-2">
+                            <FileText size={16} className="text-slate-400" />
+                            <span className="text-sm font-mono text-slate-600">
+                              {quote.pdfFileName || 'N/A'}
+                            </span>
+                            {quote.pdfFileName && (
+                              <div className="ml-4 flex items-center gap-2">
+                                <button
+                                  className="btn btn-xs btn-outline"
+                                  onClick={() => {
+                                    const url = buildApiUrl(`servicerecords/bulkquote/exports/${encodeURIComponent(quote.pdfFileName)}`);
+                                    // Open in new tab/window; server will serve inline PDF
+                                    window.open(url, '_blank');
+                                  }}
+                                >
+                                  Görüntüle
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <div className="text-xs text-slate-500">
+                            {quote.serviceRecordIds || 'N/A'}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>

@@ -111,6 +111,12 @@ export async function getCompletedServiceRecordDetails(archiveId) {
   return res.data;
 }
 
+// Customers
+export async function getCustomers(params) {
+  const res = await api.get('/api/customers', { params });
+  return res.data;
+}
+
 // Delete a single photo by id for a given record
 export async function deleteServiceRecordPhoto(recordId, photoId) {
   const res = await api.delete(`/api/servicerecords/${recordId}/photos/${photoId}`);
@@ -155,6 +161,7 @@ export default {
   signalWaitingForPhotos,
   getWaitingRecord,
   getServiceRecordPhotos,
+  getCustomers,
   uploadServiceRecordPhotos,
   deleteServiceRecordPhoto,
   getServiceTemplates,

@@ -112,14 +112,14 @@ namespace KetenErp.Api
                 Console.WriteLine($"Could not ensure MinStock/SKU columns: {ex.Message}");
             }
 
-            // Ensure ServiceRecords.Durum and Notlar
+            // Ensure ServiceRecords.Durum, Notlar, Currency, and GrandTotalOverride
             try
             {
                 var conn2 = db.Database.GetDbConnection();
                 if (conn2.State != System.Data.ConnectionState.Open)
                     conn2.Open();
                     
-                bool hasDurum = false, hasNotlar = false;
+                bool hasDurum = false, hasNotlar = false, hasCurrency = false, hasGrandTotalOverride = false, hasGrandTotalDiscount = false;
 
                 using (var cmd = conn2.CreateCommand())
                 {
@@ -130,6 +130,9 @@ namespace KetenErp.Api
                         var name = rdr.GetString(0);
                         if (name.Equals("durum", StringComparison.OrdinalIgnoreCase)) hasDurum = true;
                         if (name.Equals("notlar", StringComparison.OrdinalIgnoreCase)) hasNotlar = true;
+                        if (name.Equals("currency", StringComparison.OrdinalIgnoreCase)) hasCurrency = true;
+                        if (name.Equals("grandtotaloverride", StringComparison.OrdinalIgnoreCase)) hasGrandTotalOverride = true;
+                        if (name.Equals("grandtotaldiscount", StringComparison.OrdinalIgnoreCase)) hasGrandTotalDiscount = true;
                     }
                 }
 
@@ -147,6 +150,30 @@ namespace KetenErp.Api
                     alter2.CommandText = "ALTER TABLE servicerecords ADD COLUMN notlar TEXT;";
                     alter2.ExecuteNonQuery();
                     Console.WriteLine("Added Notlar column to ServiceRecords table.");
+                }
+
+                if (!hasCurrency)
+                {
+                    using var alter3 = conn2.CreateCommand();
+                    alter3.CommandText = "ALTER TABLE servicerecords ADD COLUMN currency TEXT;";
+                    alter3.ExecuteNonQuery();
+                    Console.WriteLine("Added Currency column to ServiceRecords table.");
+                }
+
+                if (!hasGrandTotalOverride)
+                {
+                    using var alter4 = conn2.CreateCommand();
+                    alter4.CommandText = "ALTER TABLE servicerecords ADD COLUMN grandtotaloverride NUMERIC;";
+                    alter4.ExecuteNonQuery();
+                    Console.WriteLine("Added GrandTotalOverride column to ServiceRecords table.");
+                }
+
+                if (!hasGrandTotalDiscount)
+                {
+                    using var alter5 = conn2.CreateCommand();
+                    alter5.CommandText = "ALTER TABLE servicerecords ADD COLUMN grandtotaldiscount NUMERIC;";
+                    alter5.ExecuteNonQuery();
+                    Console.WriteLine("Added GrandTotalDiscount column to ServiceRecords table.");
                 }
             }
             catch (Exception ex)

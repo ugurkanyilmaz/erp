@@ -28,6 +28,17 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Fix for "SSL/TLS handshake failed" with legacy servers (e.g. Natro)
+# This enables UnsafeLegacyRenegotiation in OpenSSL 3.0
+RUN sed -i 's/providers = provider_sect/providers = provider_sect\n\
+ssl_conf = ssl_sect\n\
+\n\
+[ssl_sect]\n\
+system_default = system_default_sect\n\
+\n\
+[system_default_sect]\n\
+Options = UnsafeLegacyRenegotiation/' /etc/ssl/openssl.cnf
+
 EXPOSE 8080
 EXPOSE 8081
 

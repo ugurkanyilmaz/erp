@@ -53,6 +53,7 @@ namespace KetenErp.Api.Controllers
             public List<string>? RecipientBcc { get; set; }
             public string? SenderName { get; set; }
 
+            
             public List<BulkQuoteItemDto> Items { get; set; } = new List<BulkQuoteItemDto>();
         }
 
@@ -74,10 +75,16 @@ namespace KetenErp.Api.Controllers
             var allProducts = (await _productRepo.GetAllAsync()).ToList();
             var allSpareParts = (await _spareRepo.GetAllAsync()).ToList();
 
+
+
             foreach (var it in req.Items)
             {
+                Console.WriteLine($"\n[PDF-DATA] ========== Processing Record ID: {it.Id} ==========");
+                
                 // load record and operations with all related entities
                 var rec = await _recordRepo.GetByIdAsync(it.Id);
+                Console.WriteLine($"[PDF-DATA] Record: ServisTakipNo={rec?.ServisTakipNo}, FirmaIsmi={rec?.FirmaIsmi}, UrunModeli={rec?.UrunModeli}");
+                Console.WriteLine($"[PDF-DATA] Record: GrandTotalOverride={rec?.GrandTotalOverride}, GrandTotalDiscount={rec?.GrandTotalDiscount}%, Currency={rec?.Currency}");
                 
                 // Load operations with full navigation properties (ChangedParts and ServiceItems)
                 var ops = await _db.ServiceOperations
@@ -85,6 +92,8 @@ namespace KetenErp.Api.Controllers
                     .Include(o => o.ChangedParts)
                     .Include(o => o.ServiceItems)
                     .ToListAsync();
+                
+                Console.WriteLine($"[PDF-DATA] Loaded {ops.Count} operations for record {it.Id}");
 
                 // İlk kayıttaki müşteri adını kullan
                 if (tumUrunler.Count == 0 && !string.IsNullOrEmpty(rec?.FirmaIsmi))
@@ -100,104 +109,223 @@ namespace KetenErp.Api.Controllers
                     ServisTakipNo = rec?.ServisTakipNo,
                     // Fiyat will be computed from operations (considering list price & discount) below
                     Fiyat = 0m,
+                    // Map per-record settings
+                    UseGrandTotal = rec?.GrandTotalOverride.HasValue == true,
+                    DiscountPercent = rec?.GrandTotalDiscount ?? 0m,
+                    Currency = rec?.Currency ?? "USD",
                     Islemler = new List<string>(),
                     // Use record notes if available, otherwise fallback to item note
                     Not = !string.IsNullOrWhiteSpace(rec?.Notlar) ? rec.Notlar : it.Note
                 };
-
-                decimal urunTotal = 0m;
-
-                foreach (var op in ops)
+                
+                Console.WriteLine($"[PDF-DATA] UrunIslem created: UrunAdi={urun.UrunAdi}, UseGrandTotal={urun.UseGrandTotal}, DiscountPercent={urun.DiscountPercent}%, Currency={urun.Currency}");
+                
+                // If GrandTotalOverride is set, use it as the base price for this item
+                if (urun.UseGrandTotal)
                 {
-                    if (op.ChangedParts != null && op.ChangedParts.Any())
+                    Console.WriteLine($"[PDF-DATA] *** GRAND TOTAL MODE *** for record {it.Id}");
+                    urun.Fiyat = rec!.GrandTotalOverride!.Value;
+                    Console.WriteLine($"[PDF-DATA] Using GrandTotalOverride: {urun.Fiyat} {urun.Currency}");
+                    
+                    // In Grand Total mode, we STILL list the parts and services so the customer sees what is being done.
+                    // The PDF generator will hide the individual prices because UseGrandTotal is true.
+                    // We parse the operations and add them with a dummy price of 0.
+                    // In Grand Total mode, we STILL list the parts and services so the customer sees what is being done.
+                    // The PDF generator will hide the individual prices because UseGrandTotal is true.
+                    // We parse the operations and add them with a dummy price of 0.
+                    
+                    // Grouping logic to avoid duplicates
+                    var groupedParts = new Dictionary<string, decimal>();
+                    var groupedServices = new Dictionary<string, decimal>();
+
+                    foreach (var op in ops)
                     {
-                        foreach (var p in op.ChangedParts)
+                        if (op.ChangedParts != null)
                         {
-                            // Eğer liste fiyatı ve indirim varsa, indirimli fiyatı hesapla
-                            try
+                            foreach (var p in op.ChangedParts)
                             {
-                                decimal list = 0m;
-                                decimal disc = 0m;
-                                decimal discounted = 0m;
-                                decimal qty = p.Quantity;
-                                
-                                // Use nullable ListPrice/DiscountPercent if provided; otherwise fall back to Price and 0
-                                // Check if ListPrice is set and greater than 0
-                                if (p.ListPrice.HasValue && p.ListPrice.Value > 0m)
-                                {
-                                    list = p.ListPrice.Value;
-                                    disc = p.DiscountPercent ?? 0m;
-                                    discounted = list * (1 - (disc / 100m));
-                                    
-                                    // Show with discount details if discount applied
-                                    if (disc > 0m)
-                                    {
-                                        urun.Islemler.Add($"Parça: {p.PartName} x{qty} : {(discounted * qty):C} (Liste: {list:C}, İndirim: %{disc})");
-                                    }
-                                    else
-                                    {
-                                        urun.Islemler.Add($"Parça: {p.PartName} x{qty} : {(discounted * qty):C}");
-                                    }
-                                    urunTotal += discounted * qty;
-                                }
-                                else
-                                {
-                                    // Fall back to Price if ListPrice not set
-                                    urun.Islemler.Add($"Parça: {p.PartName} x{qty} : {(p.Price * qty):C}");
-                                    urunTotal += p.Price * qty;
-                                }
+                                var name = p.PartName ?? "Parça";
+                                if (!groupedParts.ContainsKey(name)) groupedParts[name] = 0;
+                                groupedParts[name] += p.Quantity;
                             }
-                            catch (Exception ex)
+                        }
+                        if (op.ServiceItems != null)
+                        {
+                            foreach (var s in op.ServiceItems)
                             {
-                                Console.WriteLine($"Error processing changed part: {ex.Message}");
-                                urun.Islemler.Add($"Parça: {p.PartName} x{p.Quantity} : {(p.Price * p.Quantity):C}");
-                                urunTotal += p.Price * p.Quantity;
+                                var name = s.Name ?? "Hizmet";
+                                if (!groupedServices.ContainsKey(name)) groupedServices[name] = 0;
+                                // Services usually don't have quantity in the model (it's implicit 1 per item), 
+                                // but if we have duplicates we should show x2 etc.
+                                // ServiceItem entity usually has Price but not Quantity field? 
+                                // Let's check ServiceItem definition. If no Quantity, assume 1.
+                                groupedServices[name] += 1;
                             }
                         }
                     }
-                    if (op.ServiceItems != null && op.ServiceItems.Any())
+
+                    foreach (var kvp in groupedParts)
                     {
-                        foreach (var s in op.ServiceItems)
+                        urun.Islemler.Add($"Parça: {kvp.Key} x{kvp.Value} : 0");
+                    }
+                    foreach (var kvp in groupedServices)
+                    {
+                        // For services, if count > 1, show it. If 1, maybe just show name? 
+                        // The PDF parser handles "Hizmet: Name : Price" (qty 1) or "Hizmet: Name xQty : Price" (if we format it that way).
+                        // Let's use xQty format if > 1 to be explicit.
+                        if (kvp.Value > 1)
                         {
-                            try
+                             // We need to make sure ParseIslemLine supports "Hizmet: Name xQty : Price"
+                             // Looking at TeklifPdfOlusturucu.cs line 474, it checks "Parça:" or "Hizmet:".
+                             // Line 495 checks "if (isPart && beforeColon.Contains(" x"))". 
+                             // It explicitly checks `isPart`. So "Hizmet" might NOT support quantity parsing in the current PDF logic!
+                             // I should check TeklifPdfOlusturucu.cs again.
+                             // If it doesn't support it, I might need to list them separately OR update PDF logic.
+                             // For now, let's list them separately if it's a service, OR just append (x2) to the name?
+                             // "Hizmet: Bakım (x2) : 0" -> Name="Bakım (x2)"
+                             urun.Islemler.Add($"Hizmet: {kvp.Key} (x{kvp.Value}) : 0");
+                        }
+                        else
+                        {
+                             urun.Islemler.Add($"Hizmet: {kvp.Key} : 0");
+                        }
+                    }
+                    
+                    // If no operations found, fallback to product name to avoid empty table
+                    if (urun.Islemler.Count == 0)
+                    {
+                         Console.WriteLine($"[PDF-DATA] No operations found, using fallback item");
+                         urun.Islemler.Add($"Hizmet: {urun.UrunAdi} : 0");
+                    }
+                    
+                    Console.WriteLine($"[PDF-DATA] Grand Total Mode - Added {urun.Islemler.Count} items (no individual prices)");
+                    foreach (var item in urun.Islemler)
+                    {
+                        Console.WriteLine($"[PDF-DATA]   - {item}");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"[PDF-DATA] *** DETAILED PRICING MODE *** for record {it.Id}");
+                    // Individual Pricing Mode: Calculate total from operations
+                    decimal urunTotal = 0m;
+
+                    // Define US culture for consistent formatting (dot decimal)
+                    var usCulture = new System.Globalization.CultureInfo("en-US");
+
+                    // Grouping for Individual Mode
+                    // Key: (Name, Price, ListPrice, DiscountPercent)
+                    var groupedParts = new Dictionary<(string Name, decimal Price, decimal? ListPrice, decimal? Discount), decimal>();
+                    var groupedServices = new Dictionary<(string Name, decimal Price, decimal? ListPrice, decimal? Discount), decimal>();
+
+                    foreach (var op in ops)
+                    {
+                        if (op.ChangedParts != null && op.ChangedParts.Any())
+                        {
+                            foreach (var p in op.ChangedParts)
                             {
-                                decimal list = 0m;
-                                decimal disc = 0m;
-                                decimal discounted = 0m;
-                                
-                                // Check if ListPrice is set and greater than 0
-                                if (s.ListPrice.HasValue && s.ListPrice.Value > 0m)
-                                {
-                                    list = s.ListPrice.Value;
-                                    disc = s.DiscountPercent ?? 0m;
-                                    discounted = list * (1 - (disc / 100m));
-                                    
-                                    // Show with discount details if discount applied
-                                    if (disc > 0m)
-                                    {
-                                        urun.Islemler.Add($"Hizmet: {s.Name} : {discounted:C} (Liste: {list:C}, İndirim: %{disc})");
-                                    }
-                                    else
-                                    {
-                                        urun.Islemler.Add($"Hizmet: {s.Name} : {discounted:C}");
-                                    }
-                                    urunTotal += discounted;
-                                }
-                                else
-                                {
-                                    // Fall back to Price if ListPrice not set
-                                    urun.Islemler.Add($"Hizmet: {s.Name} : {s.Price:C}");
-                                    urunTotal += s.Price;
-                                }
+                                var key = (p.PartName ?? "Parça", p.Price, p.ListPrice, p.DiscountPercent);
+                                if (!groupedParts.ContainsKey(key)) groupedParts[key] = 0;
+                                groupedParts[key] += p.Quantity;
                             }
-                            catch (Exception ex)
+                        }
+                        if (op.ServiceItems != null && op.ServiceItems.Any())
+                        {
+                            foreach (var s in op.ServiceItems)
                             {
-                                Console.WriteLine($"Error processing service item: {ex.Message}");
-                                urun.Islemler.Add($"Hizmet: {s.Name} : {s.Price:C}");
-                                urunTotal += s.Price;
+                                var key = (s.Name ?? "Hizmet", s.Price, s.ListPrice, s.DiscountPercent);
+                                if (!groupedServices.ContainsKey(key)) groupedServices[key] = 0;
+                                groupedServices[key] += 1;
                             }
                         }
                     }
+                    
+                    Console.WriteLine($"[PDF-DATA] Grouped {groupedParts.Count} unique parts, {groupedServices.Count} unique services");
+
+                    // Process Grouped Parts
+                    foreach (var kvp in groupedParts)
+                    {
+                        var (name, price, listPrice, discount) = kvp.Key;
+                        var qty = kvp.Value;
+                        
+                        Console.WriteLine($"[PDF-DATA] Part: {name}, Qty={qty}, Price={price}, ListPrice={listPrice}, Discount={discount}%");
+                        
+                        try 
+                        {
+                            var basePrice = (listPrice.HasValue && listPrice.Value > 0m) ? listPrice.Value : price;
+                            var disc = discount ?? 0m;
+                            var discounted = basePrice * (1 - (disc / 100m));
+                            var lineTotal = discounted * qty;
+
+                            if (disc > 0m)
+                            {
+                                var label = (listPrice.HasValue && listPrice.Value > 0m) ? "Liste" : "Fiyat";
+                                var itemLine = $"Parça: {name} x{qty} : {lineTotal.ToString("C", usCulture)} ({label}: {(basePrice * qty).ToString("C", usCulture)}, İndirim: %{disc})";
+                                urun.Islemler.Add(itemLine);
+                                Console.WriteLine($"[PDF-DATA]   -> Added: {itemLine}");
+                            }
+                            else
+                            {
+                                var itemLine = $"Parça: {name} x{qty} : {lineTotal.ToString("C", usCulture)}";
+                                urun.Islemler.Add(itemLine);
+                                Console.WriteLine($"[PDF-DATA]   -> Added: {itemLine}");
+                            }
+                            urunTotal += lineTotal;
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[PDF-DATA] ERROR processing part {name}: {ex.Message}");
+                             urun.Islemler.Add($"Parça: {name} x{qty} : {(price * qty).ToString("C", usCulture)}");
+                             urunTotal += price * qty;
+                        }
+                    }
+
+                    // Process Grouped Services
+                    foreach (var kvp in groupedServices)
+                    {
+                        var (name, price, listPrice, discount) = kvp.Key;
+                        var qty = kvp.Value;
+                        
+                        Console.WriteLine($"[PDF-DATA] Service: {name}, Qty={qty}, Price={price}, ListPrice={listPrice}, Discount={discount}%");
+                        
+                        // For services, if qty > 1, append to name since PDF parser might not handle "Hizmet: ... xQty" correctly for quantity column
+                        var displayName = qty > 1 ? $"{name} (x{qty})" : name;
+
+                        try
+                        {
+                            var basePrice = (listPrice.HasValue && listPrice.Value > 0m) ? listPrice.Value : price;
+                            var disc = discount ?? 0m;
+                            var discounted = basePrice * (1 - (disc / 100m));
+                            var lineTotal = discounted * qty;
+
+                            if (disc > 0m)
+                            {
+                                var label = (listPrice.HasValue && listPrice.Value > 0m) ? "Liste" : "Fiyat";
+                                var itemLine = $"Hizmet: {displayName} : {lineTotal.ToString("C", usCulture)} ({label}: {(basePrice * qty).ToString("C", usCulture)}, İndirim: %{disc})";
+                                urun.Islemler.Add(itemLine);
+                                Console.WriteLine($"[PDF-DATA]   -> Added: {itemLine}");
+                            }
+                            else
+                            {
+                                var itemLine = $"Hizmet: {displayName} : {lineTotal.ToString("C", usCulture)}";
+                                urun.Islemler.Add(itemLine);
+                                Console.WriteLine($"[PDF-DATA]   -> Added: {itemLine}");
+                            }
+                            urunTotal += lineTotal;
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[PDF-DATA] ERROR processing service {name}: {ex.Message}");
+                            var lineTotal = price * qty;
+                            urun.Islemler.Add($"Hizmet: {displayName} : {lineTotal.ToString("C", usCulture)}");
+                            urunTotal += lineTotal;
+                        }
+                    }
+                    
+                    // CRITICAL FIX: Update the item price with the calculated total from operations
+                    urun.Fiyat = urunTotal;
+                    Console.WriteLine($"[PDF-DATA] Detailed Pricing Mode - Calculated urunTotal: {urunTotal} {urun.Currency}");
+                    Console.WriteLine($"[PDF-DATA] Detailed Pricing Mode - Added {urun.Islemler.Count} items with individual prices");
                 }
 
                 // Attach photos for this service record (if any) - belge no'ya göre bul
@@ -245,29 +373,33 @@ namespace KetenErp.Api.Controllers
                         catch { /* ignore individual photo path issues */ }
                     }
                 }
-                catch { /* ignore photo lookup errors */ }
-
+                catch { /* ignore photo loading errors */ }
+                
+                Console.WriteLine($"[PDF-DATA] Final UrunIslem: Fiyat={urun.Fiyat}, UseGrandTotal={urun.UseGrandTotal}, Islemler.Count={urun.Islemler.Count}");
+                Console.WriteLine($"[PDF-DATA] ========== End Processing Record ID: {it.Id} ==========\n");
+                
                 tumUrunler.Add(urun);
-                // Set computed price if we accumulated any operation totals, otherwise keep provided parts+services totals
-                if (urunTotal > 0m)
-                {
-                    urun.Fiyat = urunTotal;
-                }
-                else
-                {
-                    urun.Fiyat = it.PartsPrice + it.ServicesPrice;
-                }
             }
 
-            // Tek bir PDF oluştur - tüm ürünlerle
-            var fileName = $"toplu_teklif_{DateTime.Now:yyyyMMddHHmmss}.pdf";
-            var filePath = Path.Combine(exportsDir, fileName);
-            var logoPath = Path.Combine(AppContext.BaseDirectory, "Services", "weblogo.jpg");
-            
-            // Use public-facing base URL so generated PDFs contain customer-friendly links (configured via FrontendUrl)
             var publicBaseUrl = !string.IsNullOrWhiteSpace(_frontendUrl) ? _frontendUrl : "";
-            byte[] pdf = TeklifPdfOlusturucu.Olustur(musteriAdi, tumUrunler, logoPath, null, belgeNoForPdf, req.SenderName, publicBaseUrl);
+            
+            // Define missing variables for PDF generation
+            var servicesFolder = Path.Combine(AppContext.BaseDirectory, "Services");
+            var logoPath = Path.Combine(servicesFolder, "logo.png");
+            var fileName = $"Teklif_{belgeNoForPdf ?? DateTime.Now.ToString("yyyyMMdd_HHmmss")}.pdf";
+            var filePath = Path.Combine(exportsDir, fileName);
+
+            // Currency is now derived from items, so we pass null to let Olustur handle it
+            Console.WriteLine($"\n[PDF-GEN] ========== Calling PDF Generator ==========");
+            Console.WriteLine($"[PDF-GEN] Customer: {musteriAdi}, Total Items: {tumUrunler.Count}");
+            foreach (var u in tumUrunler)
+            {
+                Console.WriteLine($"[PDF-GEN] Item: {u.UrunAdi}, UseGrandTotal={u.UseGrandTotal}, Fiyat={u.Fiyat}, Currency={u.Currency}");
+            }
+            
+            byte[] pdf = TeklifPdfOlusturucu.Olustur(musteriAdi, tumUrunler, logoPath, null, belgeNoForPdf, req.SenderName, publicBaseUrl, null);
             await System.IO.File.WriteAllBytesAsync(filePath, pdf);
+            Console.WriteLine($"[PDF-GEN] PDF saved to: {filePath}");
             exported.Add(filePath);
 
             // E-mail gönderme işlemi

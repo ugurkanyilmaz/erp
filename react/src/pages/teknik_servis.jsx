@@ -160,7 +160,7 @@ export default function TeknikServis() {
         await serviceApi.updateServiceOperation(selectedRecord.id, operationId, newOp);
         const ops = await serviceApi.getServiceOperations(selectedRecord.id);
         setOperations(ops || []);
-      // notify user of success/failure using the shared Notification
+        // notify user of success/failure using the shared Notification
       } catch (err) {
         console.error('Could not save operation', err);
         setNotification({ type: 'error', message: 'Kaydetme sırasında hata oluştu.' });
@@ -212,7 +212,7 @@ export default function TeknikServis() {
   };
 
   const sendQuote = async (id, customerEmail = '', options = {}) => {
-    // single item wrapper - include optional cc/bcc/senderName in payload
+    // single item wrapper - backend reads currency/grandTotal from database record
     const payload = {
       recipientEmail: customerEmail,
       recipientCc: options.cc || undefined,
@@ -229,7 +229,7 @@ export default function TeknikServis() {
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button className="p-2 hover:bg-slate-100 rounded-lg transition" onClick={() => navigate('/') }>
+            <button className="p-2 hover:bg-slate-100 rounded-lg transition" onClick={() => navigate('/')}>
               <ChevronLeft size={22} className="text-slate-700" />
             </button>
             <div className="flex items-center gap-3">
@@ -251,11 +251,10 @@ export default function TeknikServis() {
             <Link
               key={tab.to}
               to={tab.to}
-              className={`px-5 py-2.5 rounded-xl font-medium transition-all duration-300 shadow-sm ${
-                isActive(tab.to)
-                  ? 'bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-md'
-                  : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
-              }`}
+              className={`px-5 py-2.5 rounded-xl font-medium transition-all duration-300 shadow-sm ${isActive(tab.to)
+                ? 'bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-md'
+                : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
+                }`}
             >
               {tab.label}
             </Link>
@@ -269,9 +268,8 @@ export default function TeknikServis() {
         </AnimatePresence>
         <Notification type={notification.type || 'info'} message={notification.message || ''} onClose={clearNotification} />
 
-  <ServiceDetailModal open={detailOpen} onClose={closeDetail} record={selectedRecord} operations={operations} loading={opsLoading} onDeleteOperation={deleteOperation} onUpdateOperation={updateOperationLocal} canEdit={roles.includes('admin') || roles.includes('muhasebe')} onDeleteRecord={deleteRecord} canDelete={roles.includes('admin')} showPrices={!!detailOptions.showPrices} onUpdateRecord={updateRecord} setNotification={setNotification} />
+        <ServiceDetailModal open={detailOpen} onClose={closeDetail} record={selectedRecord} operations={operations} loading={opsLoading} onDeleteOperation={deleteOperation} onUpdateOperation={updateOperationLocal} canEdit={roles.includes('admin') || roles.includes('muhasebe')} onDeleteRecord={deleteRecord} canDelete={roles.includes('admin')} showPrices={!!detailOptions.showPrices} onUpdateRecord={updateRecord} setNotification={setNotification} />
       </main>
     </div>
   );
 }
-

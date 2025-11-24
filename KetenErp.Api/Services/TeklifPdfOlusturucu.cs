@@ -14,6 +14,9 @@ namespace KetenErp.Api.Services
         public string? ServisTakipNo { get; set; }
         public string? SKU { get; set; }
         public decimal Fiyat { get; set; }
+        public decimal DiscountPercent { get; set; } = 0; // Discount percentage for grand total mode
+        public bool UseGrandTotal { get; set; } = false; // Whether to use grand total mode for this item
+        public string? Currency { get; set; } // Currency for this item (e.g. "USD", "TRY")
         public List<string> Islemler { get; set; } = new List<string>();
         // list of absolute file paths to photos to render under the product
         public List<string> PhotoPaths { get; set; } = new List<string>();
@@ -22,6 +25,9 @@ namespace KetenErp.Api.Services
 
     public static class TeklifPdfOlusturucu
     {
+        // Define US culture for currency formatting ($)
+        private static readonly System.Globalization.CultureInfo UsCulture = new System.Globalization.CultureInfo("en-US");
+
         static TeklifPdfOlusturucu()
         {
             // QuestPDF Community License - Free for organizations with annual gross revenue below $1M USD
@@ -30,13 +36,50 @@ namespace KetenErp.Api.Services
 
         // baseUrl: optional web base url (e.g. "http://example.com:8443").
         // If provided, photo web links in the PDF will be printed as full URLs using this base.
-        public static byte[] Olustur(string musteriAdi, List<UrunIslem> urunler, string? logoYolu = null, string? genelNot = null, string? belgeNo = null, string? gonderenAdi = null, string? baseUrl = null)
+        // currency: Global currency for the document (defaults to first item's currency if not provided)
+        public static byte[] Olustur(string musteriAdi, List<UrunIslem> urunler, string? logoYolu = null, string? genelNot = null, string? belgeNo = null, string? gonderenAdi = null, string? baseUrl = null, string? currency = null)
         {
-            decimal toplamTutar = urunler.Sum(u => u.Fiyat);
+            Console.WriteLine($"\n[PDF-RENDER] ========== PDF Generator Start ==========");
+            Console.WriteLine($"[PDF-RENDER] Customer: {musteriAdi}, Items: {urunler.Count}, BelgeNo: {belgeNo}");
+            
+            // Use the currency of the first item if not provided
+            if (string.IsNullOrEmpty(currency) && urunler.Any())
+            {
+                currency = urunler.First().Currency ?? "USD";
+                Console.WriteLine($"[PDF-RENDER] Currency from first item: {currency}");
+            }
+            else if (string.IsNullOrEmpty(currency))
+            {
+                currency = "USD";
+                Console.WriteLine($"[PDF-RENDER] Using default currency: USD");
+            }
+            else
+            {
+                Console.WriteLine($"[PDF-RENDER] Using provided currency: {currency}");
+            }
+
+            // Calculate total amount considering discounts
+            Console.WriteLine($"[PDF-RENDER] Calculating totals...");
+            decimal toplamTutar = urunler.Sum(u => 
+            {
+                decimal itemTotal;
+                if (u.UseGrandTotal && u.DiscountPercent > 0)
+                {
+                    itemTotal = u.Fiyat * (1 - (u.DiscountPercent / 100m));
+                    Console.WriteLine($"[PDF-RENDER]   Item '{u.UrunAdi}': {u.Fiyat} - {u.DiscountPercent}% = {itemTotal}");
+                }
+                else
+                {
+                    itemTotal = u.Fiyat;
+                    Console.WriteLine($"[PDF-RENDER]   Item '{u.UrunAdi}': {itemTotal} (no grand total discount)");
+                }
+                return itemTotal;
+            });
             // KDV hesaplama (%20)
             decimal kdvOrani = 0.20m;
             decimal kdvTutar = Math.Round(toplamTutar * kdvOrani, 2);
             decimal kdvliToplam = Math.Round(toplamTutar + kdvTutar, 2);
+            Console.WriteLine($"[PDF-RENDER] Total before VAT: {toplamTutar}, VAT: {kdvTutar}, Total with VAT: {kdvliToplam}");
             string belgeTarihi = DateTime.Now.ToString("dd.MM.yyyy");
             if (string.IsNullOrWhiteSpace(belgeNo))
             {
@@ -88,24 +131,16 @@ namespace KetenErp.Api.Services
                     // --- FOOTER (anchored to bottom of every page) ---
                     page.Footer().AlignBottom().Element(containerFooter =>
                     {
-                        var footerImagePath = System.IO.Path.Combine(AppContext.BaseDirectory, "Services", "footer.jpg");
-                        if (System.IO.File.Exists(footerImagePath))
+                        // Footer text on all pages
+                        containerFooter.Column(footerCol =>
                         {
-                            containerFooter.Height(60).Image(footerImagePath).FitWidth();
-                        }
-                        else
-                        {
-                            Console.WriteLine($"[PDF] Footer image not found at: {footerImagePath}");
-                            containerFooter.Column(footerCol =>
+                            footerCol.Item().LineHorizontal(0.5f).LineColor("#E0E0E0");
+                            footerCol.Item().PaddingTop(5).Text(txt =>
                             {
-                                footerCol.Item().LineHorizontal(0.5f).LineColor("#E0E0E0");
-                                footerCol.Item().PaddingTop(5).Text(txt =>
-                                {
-                                    txt.Span("Keten Pnömatik | ").FontSize(7);
-                                    txt.Span("Endüstriyel Montaj Ekipmanları").FontSize(7).Italic();
-                                });
+                                txt.Span("Keten Pnömatik | ").FontSize(7);
+                                txt.Span("Endüstriyel Montaj Ekipmanları").FontSize(7).Italic();
                             });
-                        }
+                        });
                     });
 
                     // --- CONTENT ---
@@ -131,6 +166,10 @@ namespace KetenErp.Api.Services
                         // Her ürün için ayrı tablo
                         foreach (var urun in urunler)
                         {
+                            Console.WriteLine($"\n[PDF-RENDER] --- Rendering Item: {urun.UrunAdi} ---");
+                            Console.WriteLine($"[PDF-RENDER] UseGrandTotal: {urun.UseGrandTotal}, Fiyat: {urun.Fiyat}, Currency: {urun.Currency}");
+                            Console.WriteLine($"[PDF-RENDER] DiscountPercent: {urun.DiscountPercent}%, Islemler.Count: {urun.Islemler.Count}");
+                            
                             col.Item().PaddingBottom(15).Column(urunCol =>
                             {
                                 // Ürün başlığı - renkli arka plan
@@ -163,12 +202,24 @@ namespace KetenErp.Api.Services
                                 {
                                     table.ColumnsDefinition(columns =>
                                     {
-                                        columns.RelativeColumn(4); // Stok Kodu / Stok Adı
-                                        columns.RelativeColumn(1); // Miktar
-                                        columns.RelativeColumn(1.5f); // Liste Fiyatı
-                                        columns.RelativeColumn(1); // İndirim
-                                        columns.RelativeColumn(1.5f); // İnd. Fiyat
-                                        columns.RelativeColumn(1.5f); // Toplam
+                                        if (urun.UseGrandTotal)
+                                        {
+                                            Console.WriteLine($"[PDF-RENDER] Table Mode: GRAND TOTAL (2 columns)");
+                                            // Grand total mode: only show Stock Code/Name and Quantity
+                                            columns.RelativeColumn(5); // Stok Kodu / Stok Adı
+                                            columns.RelativeColumn(2); // Miktar
+                                        }
+                                        else
+                                        {
+                                            Console.WriteLine($"[PDF-RENDER] Table Mode: DETAILED PRICING (6 columns)");
+                                            // Normal mode: show all columns
+                                            columns.RelativeColumn(4); // Stok Kodu / Stok Adı
+                                            columns.RelativeColumn(1); // Miktar
+                                            columns.RelativeColumn(1.5f); // Liste Fiyatı
+                                            columns.RelativeColumn(1); // İndirim
+                                            columns.RelativeColumn(1.5f); // İnd. Fiyat
+                                            columns.RelativeColumn(1.5f); // Toplam
+                                        }
                                     });
 
                                     // Başlık satırı
@@ -178,14 +229,19 @@ namespace KetenErp.Api.Services
                                             .Padding(5).Text("Stok Kodu / Stok Adı").FontSize(9).Bold();
                                         header.Cell().Background("#E3F2FD").Border(0.5f).BorderColor("#90CAF9")
                                             .Padding(5).AlignCenter().Text("Miktar").FontSize(9).Bold();
-                                        header.Cell().Background("#E3F2FD").Border(0.5f).BorderColor("#90CAF9")
-                                            .Padding(5).AlignRight().Text("Liste Fiyatı").FontSize(9).Bold();
-                                        header.Cell().Background("#E3F2FD").Border(0.5f).BorderColor("#90CAF9")
-                                            .Padding(5).AlignCenter().Text("İnd. %").FontSize(9).Bold();
-                                        header.Cell().Background("#E3F2FD").Border(0.5f).BorderColor("#90CAF9")
-                                            .Padding(5).AlignRight().Text("İnd. Fiyat").FontSize(9).Bold();
-                                        header.Cell().Background("#E3F2FD").Border(0.5f).BorderColor("#90CAF9")
-                                            .Padding(5).AlignRight().Text("Toplam Fiyat").FontSize(9).Bold();
+                                        
+                                        
+                                        if (!urun.UseGrandTotal)
+                                        {
+                                            header.Cell().Background("#E3F2FD").Border(0.5f).BorderColor("#90CAF9")
+                                                .Padding(5).AlignRight().Text("Liste Fiyatı").FontSize(9).Bold();
+                                            header.Cell().Background("#E3F2FD").Border(0.5f).BorderColor("#90CAF9")
+                                                .Padding(5).AlignCenter().Text("İnd. %").FontSize(9).Bold();
+                                            header.Cell().Background("#E3F2FD").Border(0.5f).BorderColor("#90CAF9")
+                                                .Padding(5).AlignRight().Text("İnd. Fiyat").FontSize(9).Bold();
+                                            header.Cell().Background("#E3F2FD").Border(0.5f).BorderColor("#90CAF9")
+                                                .Padding(5).AlignRight().Text("Toplam Fiyat").FontSize(9).Bold();
+                                        }
                                     });
 
                                     // İşlem satırları
@@ -198,14 +254,18 @@ namespace KetenErp.Api.Services
                                             .Padding(5).Text(parts.Name).FontSize(9);
                                         table.Cell().Border(0.5f).BorderColor("#E0E0E0")
                                             .Padding(5).AlignCenter().Text(parts.Quantity).FontSize(9);
-                                        table.Cell().Border(0.5f).BorderColor("#E0E0E0")
-                                            .Padding(5).AlignRight().Text(parts.ListPrice).FontSize(9);
-                                        table.Cell().Border(0.5f).BorderColor("#E0E0E0")
-                                            .Padding(5).AlignCenter().Text(parts.Discount).FontSize(9);
-                                        table.Cell().Border(0.5f).BorderColor("#E0E0E0")
-                                            .Padding(5).AlignRight().Text(parts.DiscountedPrice).FontSize(9);
-                                        table.Cell().Border(0.5f).BorderColor("#E0E0E0")
-                                            .Padding(5).AlignRight().Text(parts.TotalPrice).FontSize(9).Bold();
+                                        
+                                        if (!urun.UseGrandTotal)
+                                        {
+                                            table.Cell().Border(0.5f).BorderColor("#E0E0E0")
+                                                .Padding(5).AlignRight().Text(parts.ListPrice).FontSize(9);
+                                            table.Cell().Border(0.5f).BorderColor("#E0E0E0")
+                                                .Padding(5).AlignCenter().Text(parts.Discount).FontSize(9);
+                                            table.Cell().Border(0.5f).BorderColor("#E0E0E0")
+                                                .Padding(5).AlignRight().Text(parts.DiscountedPrice).FontSize(9);
+                                            table.Cell().Border(0.5f).BorderColor("#E0E0E0")
+                                                .Padding(5).AlignRight().Text(parts.TotalPrice).FontSize(9).Bold();
+                                        }
                                     }
                                 });
 
@@ -261,10 +321,57 @@ namespace KetenErp.Api.Services
                                     });
                                 }
 
-                                // Ürün toplamı
-                                urunCol.Item().PaddingTop(5).AlignRight()
-                                    .Text($"Ara Toplam: {urun.Fiyat:C2}")
-                                    .FontSize(11).Bold().FontColor("#1565C0");
+
+
+                                // Ürün toplamı / Grand Total Info
+                                if (urun.UseGrandTotal)
+                                {
+                                    Console.WriteLine($"[PDF-RENDER] Rendering GRAND TOTAL BOX for {urun.UrunAdi}");
+                                    // Grand total mode: show total, discount, and final price
+                                    var discountedPrice = urun.Fiyat * (1 - (urun.DiscountPercent / 100));
+                                    Console.WriteLine($"[PDF-RENDER] Grand Total: {urun.Fiyat}, Discount: {urun.DiscountPercent}%, Final: {discountedPrice}");
+                                    
+                                    urunCol.Item().PaddingTop(8).Border(1).BorderColor("#E0E0E0")
+                                        .Background("#F5F5F5").Padding(10).Column(grandTotalCol =>
+                                    {
+                                        grandTotalCol.Item().Row(row =>
+                                        {
+                                            row.RelativeItem().Text("Toplam Tutar:").FontSize(10);
+                                            row.ConstantItem(100).AlignRight().Text(FormatCurrency(urun.Fiyat, currency))
+                                                .FontSize(10).Bold();
+                                        });
+                                        
+                                        if (urun.DiscountPercent > 0)
+                                        {
+                                            grandTotalCol.Item().PaddingTop(3).Row(row =>
+                                            {
+                                                row.RelativeItem().Text($"İndirim (%{urun.DiscountPercent:0.##}):").FontSize(10)
+                                                    .FontColor("#D32F2F");
+                                                row.ConstantItem(100).AlignRight()
+                                                    .Text($"-{FormatCurrency(urun.Fiyat - discountedPrice, currency)}")
+                                                    .FontSize(10).FontColor("#D32F2F");
+                                            });
+                                        }
+                                        
+                                        grandTotalCol.Item().PaddingTop(6).LineHorizontal(0.5f).LineColor("#BDBDBD");
+                                        
+                                        grandTotalCol.Item().PaddingTop(6).Row(row =>
+                                        {
+                                            row.RelativeItem().Text("Ödenecek Tutar:").FontSize(11).Bold();
+                                            row.ConstantItem(100).AlignRight()
+                                                .Text(FormatCurrency(discountedPrice, currency))
+                                                .FontSize(11).Bold().FontColor("#1565C0");
+                                        });
+                                    });
+                                }
+                                else
+                                {
+                                    Console.WriteLine($"[PDF-RENDER] Rendering SUBTOTAL for {urun.UrunAdi}: {urun.Fiyat}");
+                                    // Normal mode: show simple subtotal
+                                    urunCol.Item().PaddingTop(5).AlignRight()
+                                        .Text($"Ara Toplam: {FormatCurrency(urun.Fiyat, currency)}")
+                                        .FontSize(11).Bold().FontColor("#1565C0");
+                                }
                             });
                         }
 
@@ -273,7 +380,7 @@ namespace KetenErp.Api.Services
                             .BorderColor("#4CAF50").Padding(12).Row(row =>
                             {
                                 row.RelativeItem().Text("Genel Toplam").FontSize(13).Bold();
-                                row.ConstantItem(150).AlignRight().Text($"{toplamTutar:C2}")
+                                row.ConstantItem(150).AlignRight().Text($"{FormatCurrency(toplamTutar, currency)}")
                                     .FontSize(14).Bold().FontColor("#2E7D32");
                             });
 
@@ -284,14 +391,14 @@ namespace KetenErp.Api.Services
                         col.Item().PaddingTop(6).Row(kdvRow =>
                         {
                             kdvRow.RelativeItem().Text($"KDV (%{(kdvOrani * 100):0}) Tutarı").FontSize(10);
-                            kdvRow.ConstantItem(150).AlignRight().Text($"{kdvTutar:C2}").FontSize(10);
+                            kdvRow.ConstantItem(150).AlignRight().Text($"{FormatCurrency(kdvTutar, currency)}").FontSize(10);
                         });
 
                         // KDV dahil toplam
                         col.Item().PaddingTop(6).Background("#FFF3E0").Border(1).BorderColor("#FFB74D").Padding(10).Row(row =>
                         {
-                            row.RelativeItem().Text("Ödenecek (KDV %20 dahil)").FontSize(12).Bold();
-                            row.ConstantItem(150).AlignRight().Text($"{kdvliToplam:C2}")
+                            row.RelativeItem().Text("KDV Dahil Toplam Tutar").FontSize(12).Bold();
+                            row.ConstantItem(150).AlignRight().Text($"{FormatCurrency(kdvliToplam, currency)}")
                                 .FontSize(12).Bold().FontColor("#BF360C");
                         });
 
@@ -360,9 +467,17 @@ namespace KetenErp.Api.Services
                                 }
                             });
                         }
+                        // Footer Image (Only on the last page, at the end of content)
+                        var footerImagePath = System.IO.Path.Combine(AppContext.BaseDirectory, "Services", "footer.jpg");
+                        if (System.IO.File.Exists(footerImagePath))
+                        {
+                            col.Item().PaddingTop(20).Height(60).Image(footerImagePath).FitWidth();
+                        }
                     });
                 });
             });
+            
+            Console.WriteLine($"[PDF-RENDER] ========== PDF Generation Complete ==========\n");
 
             return doc.GeneratePdf();
         }
@@ -439,11 +554,24 @@ namespace KetenErp.Api.Services
                         if (isPart && decimal.TryParse(qty.Replace(",", "."), System.Globalization.NumberStyles.Any, 
                             System.Globalization.CultureInfo.InvariantCulture, out var qtyVal))
                         {
-                            var priceStr = discountedPrice.Replace("₺", "").Replace(",", ".").Trim();
-                            if (decimal.TryParse(priceStr, System.Globalization.NumberStyles.Any,
-                                System.Globalization.CultureInfo.InvariantCulture, out var priceVal))
+                            // Remove currency symbols and whitespace
+                            var cleanPrice = System.Text.RegularExpressions.Regex.Replace(discountedPrice, @"[^\d.,]", "").Trim();
+                            
+                            // Try parsing with InvariantCulture (dot decimal) first
+                            if (!decimal.TryParse(cleanPrice, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var priceVal))
                             {
-                                totalPrice = (qtyVal * priceVal).ToString("N2") + " ₺";
+                                // If failed, try parsing with TR culture (comma decimal)
+                                var trCulture = new System.Globalization.CultureInfo("tr-TR");
+                                if (decimal.TryParse(cleanPrice, System.Globalization.NumberStyles.Any, trCulture, out var priceValTr))
+                                {
+                                    priceVal = priceValTr;
+                                }
+                            }
+                            
+                            // If we successfully parsed the price, calculate total
+                            if (priceVal > 0)
+                            {
+                                totalPrice = (qtyVal * priceVal).ToString("N2", UsCulture);
                             }
                         }
                     }
@@ -474,13 +602,30 @@ namespace KetenErp.Api.Services
                     }
                 }
 
+                // Format quantity: remove decimals if integer (e.g. "1,00" -> "1")
+                if (decimal.TryParse(qty, System.Globalization.NumberStyles.Any, new System.Globalization.CultureInfo("tr-TR"), out var qVal))
+                {
+                    if (qVal % 1 == 0) qty = qVal.ToString("F0");
+                }
+
                 return (name, qty, listPrice, discount, discountedPrice, totalPrice);
             }
             catch
             {
                 // Parse hatası durumunda güvenli değerler döndür
-                return (islem, "1,00", "0,00", "0,00", "0,00", "0,00");
+                return (islem, "1", "0,00", "0,00", "0,00", "0,00");
             }
+        }
+
+        // Helper method to format currency based on selected currency code
+        private static string FormatCurrency(decimal amount, string? currency)
+        {
+            return (currency?.ToUpperInvariant()) switch
+            {
+                "EUR" => $"€{amount:N2}",
+                "TRY" => $"₺{amount:N2}",
+                _ => $"${amount:N2}" // Default to USD
+            };
         }
     }
 }
