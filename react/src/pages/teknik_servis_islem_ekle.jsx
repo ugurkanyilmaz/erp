@@ -10,7 +10,6 @@ export default function IslemEkle(props) {
   const [localSelectedRecordId, setLocalSelectedRecordId] = useState('');
   const [localYeniParca, setLocalYeniParca] = useState({ partName: '', quantity: 1 });
   const [localIslemEkleme, setLocalIslemEkleme] = useState({ islemBitisTarihi: '', yapanKisi: '', changedParts: [], serviceItems: [] });
-  const [isSaving, setIsSaving] = useState(false);
   // yapan kişi fields: two fields (dropdown or free-text). consumers may provide 'people' via props or outlet
   const [peopleSuggestions, setPeopleSuggestions] = useState([]);
   useEffect(() => {
@@ -35,7 +34,7 @@ export default function IslemEkle(props) {
         if (Array.isArray(stored) && stored.length > 0) { if (mounted) setPeopleSuggestions(stored.map(s => (typeof s === 'string' ? s : (s.value || '')))); return; }
       } catch (e) { }
 
-      const defaults = ['Ahmet', 'Mehmet', 'Ayşe', 'Fatma'];
+      const defaults = ['Ahmet','Mehmet','Ayşe','Fatma'];
       try { localStorage.setItem(key, JSON.stringify(defaults)); } catch (e) { }
       if (mounted) setPeopleSuggestions(defaults);
     })();
@@ -49,7 +48,7 @@ export default function IslemEkle(props) {
   const [photoFiles, setPhotoFiles] = useState([]);
   const [photoError, setPhotoError] = useState('');
   const [showQrModal, setShowQrModal] = useState(false);
-
+  
   // Kayıt notları için state
   const [recordNotes, setRecordNotes] = useState('');
   const [editingNotes, setEditingNotes] = useState(false);
@@ -128,7 +127,7 @@ export default function IslemEkle(props) {
         if (Array.isArray(stored) && stored.length > 0) { if (mounted) setHizmetSuggestions(stored.map(s => (typeof s === 'string' ? s : (s.value || '')))); return; }
       } catch (e) { }
 
-      const defaults = ['Servis kiti', 'Yağ değişimi', 'Elektrikli Bakım', 'Havalı Bakım'];
+      const defaults = ['Servis kiti','Yağ değişimi','Elektrikli Bakım','Havalı Bakım'];
       try { localStorage.setItem(key, JSON.stringify(defaults)); } catch (e) { }
       if (mounted) setHizmetSuggestions(defaults);
     })();
@@ -216,9 +215,9 @@ export default function IslemEkle(props) {
         // ignore - preview refresh isn't critical
       }
 
-      // clear local inputs
-      setIslemEkleme({ islemBitisTarihi: '', yapanKisi: '', changedParts: [], serviceItems: [] });
-      setYapan1(''); setYapan1Other(''); setYapan2(''); setYapan2Other(''); setPhotoFiles([]); setPhotoError('');
+  // clear local inputs
+  setIslemEkleme({ islemBitisTarihi: '', yapanKisi: '', changedParts: [], serviceItems: [] });
+  setYapan1(''); setYapan1Other(''); setYapan2(''); setYapan2Other(''); setPhotoFiles([]); setPhotoError('');
       try { outlet.setNotification?.({ type: 'success', message: 'İşlem kaydedildi' }); } catch (e) { alert('İşlem kaydedildi'); }
     } catch (err) {
       console.error('Could not create operation', err);
@@ -281,13 +280,13 @@ export default function IslemEkle(props) {
       setEditingNotes(false);
       return;
     }
-
+    
     // Load record notes
     const selectedRec = servisKayitlari.find((r) => `${r.id}` === `${selectedRecordId}`);
     if (selectedRec) {
       setRecordNotes(selectedRec.notlar || '');
     }
-
+    
     setExistingOpsLoading(true);
     setExistingOpsError('');
     serviceApi.getServiceOperations(selectedRecordId)
@@ -308,7 +307,7 @@ export default function IslemEkle(props) {
   React.useEffect(() => {
     let mounted = true;
     let interval = null;
-
+    
     if (selectedRecordId) {
       interval = setInterval(async () => {
         if (!mounted) return;
@@ -390,7 +389,7 @@ export default function IslemEkle(props) {
               <div className="flex items-center justify-between mb-2">
                 <div className="text-sm font-bold text-amber-900">📝 Kayıt Notları</div>
                 {!editingNotes && (
-                  <button
+                  <button 
                     className="btn btn-xs btn-ghost text-amber-700 hover:bg-amber-100"
                     onClick={() => setEditingNotes(true)}
                   >
@@ -400,14 +399,14 @@ export default function IslemEkle(props) {
               </div>
               {editingNotes ? (
                 <div>
-                  <textarea
+                  <textarea 
                     className="textarea textarea-bordered w-full min-h-[100px] bg-white"
                     value={recordNotes}
                     onChange={(e) => setRecordNotes(e.target.value)}
                     placeholder="Kayıt notları..."
                   />
                   <div className="flex gap-2 mt-2">
-                    <button
+                    <button 
                       className="btn btn-sm btn-success"
                       disabled={savingNotes}
                       onClick={async () => {
@@ -416,9 +415,9 @@ export default function IslemEkle(props) {
                           setSavingNotes(true);
                           const selectedRec = servisKayitlari.find((r) => `${r.id}` === `${selectedRecordId}`);
                           if (selectedRec) {
-                            await serviceApi.updateServiceRecord(selectedRecordId, {
-                              ...selectedRec,
-                              notlar: recordNotes
+                            await serviceApi.updateServiceRecord(selectedRecordId, { 
+                              ...selectedRec, 
+                              notlar: recordNotes 
                             });
                             // Refresh the list
                             try {
@@ -427,18 +426,18 @@ export default function IslemEkle(props) {
                               // ignore
                             }
                             setEditingNotes(false);
-                            try {
-                              outlet.setNotification?.({ type: 'success', message: 'Notlar kaydedildi' });
-                            } catch (e) {
-                              alert('Notlar kaydedildi');
+                            try { 
+                              outlet.setNotification?.({ type: 'success', message: 'Notlar kaydedildi' }); 
+                            } catch (e) { 
+                              alert('Notlar kaydedildi'); 
                             }
                           }
                         } catch (err) {
                           console.error('Could not save notes', err);
-                          try {
-                            outlet.setNotification?.({ type: 'error', message: 'Notlar kaydedilemedi: ' + (err?.message || 'Hata') });
-                          } catch (e) {
-                            alert('Notlar kaydedilemedi');
+                          try { 
+                            outlet.setNotification?.({ type: 'error', message: 'Notlar kaydedilemedi: ' + (err?.message || 'Hata') }); 
+                          } catch (e) { 
+                            alert('Notlar kaydedilemedi'); 
                           }
                         } finally {
                           setSavingNotes(false);
@@ -447,7 +446,7 @@ export default function IslemEkle(props) {
                     >
                       {savingNotes ? 'Kaydediliyor...' : 'Kaydet'}
                     </button>
-                    <button
+                    <button 
                       className="btn btn-sm btn-ghost"
                       disabled={savingNotes}
                       onClick={() => {
@@ -466,7 +465,7 @@ export default function IslemEkle(props) {
                 </div>
               )}
             </div>
-
+            
             <div className="text-sm font-semibold mb-2">Önceki İşlemler</div>
             {existingOpsLoading && <div className="text-sm text-slate-500">İşlemler yükleniyor...</div>}
             {existingOpsError && <div className="text-sm text-rose-600">{existingOpsError}</div>}
@@ -549,8 +548,8 @@ export default function IslemEkle(props) {
                       const q = (yeniParca.partName || '').toLowerCase();
                       return !q || ((sp.parcaNo || sp.partNumber || sp.title || '') + '').toLowerCase().includes(q);
                     }).length === 0 && (
-                        <li className="px-4 py-2 text-slate-500 text-sm">Eşleşen parça yok</li>
-                      )}
+                      <li className="px-4 py-2 text-slate-500 text-sm">Eşleşen parça yok</li>
+                    )}
                   </ul>
                 )}
               </div>
@@ -607,26 +606,61 @@ export default function IslemEkle(props) {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="form-control">
-                    <label className="label"><span className="label-text">Parça adı</span></label>
-                    {addPartMode === 'linked' ? (
-                      addPartProductId ? (
+                      <label className="label"><span className="label-text">Parça adı</span></label>
+                      {addPartMode === 'linked' ? (
+                        addPartProductId ? (
+                          (() => {
+                            const productParts = sparePartsFromOutlet.filter(s => `${s.productId}` === `${addPartProductId}`);
+                              return productParts && productParts.length > 0 ? (
+                                <div>
+                                  <div className="relative">
+                                    <div className="select select-bordered flex items-center rounded-xl px-3">
+                                      <input
+                                        list={`product-${addPartProductId}-parts-list`}
+                                        className="flex-1 bg-transparent border-0 outline-none py-2"
+                                        value={addPartName}
+                                        onChange={(e) => setAddPartName(e.target.value)}
+                                        placeholder="Parça seçin veya yazın"
+                                      />
+                                      <svg className="w-4 h-4 text-slate-500 ml-2" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                    </div>
+                                    <datalist id={`product-${addPartProductId}-parts-list`}>
+                                      {productParts.map(sp => (
+                                        <option key={sp.id} value={sp.parcaNo || sp.partNumber || sp.title || sp.id} />
+                                      ))}
+                                    </datalist>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="relative">
+                                  <div className="select select-bordered flex items-center rounded-xl px-3">
+                                    <input type="text" className="flex-1 bg-transparent border-0 outline-none py-2" value={addPartName} onChange={(e) => setAddPartName(e.target.value)} placeholder="Bu ürün için kayıtlı parça yok, manuel girin" />
+                                    <svg className="w-4 h-4 text-slate-500 ml-2" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                  </div>
+                                </div>
+                              );
+                          })()
+                        ) : (
+                          <input type="text" className="input input-bordered" value={addPartName} onChange={(e) => setAddPartName(e.target.value)} placeholder="Önce ürün seçin" disabled />
+                        )
+                      ) : (
                         (() => {
-                          const productParts = sparePartsFromOutlet.filter(s => `${s.productId}` === `${addPartProductId}`);
-                          return productParts && productParts.length > 0 ? (
+                          const independentParts = sparePartsFromOutlet.filter(s => !s.productId);
+                          return independentParts && independentParts.length > 0 ? (
                             <div>
                               <div className="relative">
                                 <div className="select select-bordered flex items-center rounded-xl px-3">
                                   <input
-                                    list={`product-${addPartProductId}-parts-list`}
+                                    list="independent-parts-list"
                                     className="flex-1 bg-transparent border-0 outline-none py-2"
                                     value={addPartName}
                                     onChange={(e) => setAddPartName(e.target.value)}
                                     placeholder="Parça seçin veya yazın"
                                   />
-                                  <svg className="w-4 h-4 text-slate-500 ml-2" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                  <svg className="w-4 h-4 text-slate-500 ml-2" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                                 </div>
-                                <datalist id={`product-${addPartProductId}-parts-list`}>
-                                  {productParts.map(sp => (
+                                <datalist id="independent-parts-list">
+                                  {independentParts.map(sp => (
                                     <option key={sp.id} value={sp.parcaNo || sp.partNumber || sp.title || sp.id} />
                                   ))}
                                 </datalist>
@@ -635,49 +669,14 @@ export default function IslemEkle(props) {
                           ) : (
                             <div className="relative">
                               <div className="select select-bordered flex items-center rounded-xl px-3">
-                                <input type="text" className="flex-1 bg-transparent border-0 outline-none py-2" value={addPartName} onChange={(e) => setAddPartName(e.target.value)} placeholder="Bu ürün için kayıtlı parça yok, manuel girin" />
-                                <svg className="w-4 h-4 text-slate-500 ml-2" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                <input type="text" className="flex-1 bg-transparent border-0 outline-none py-2" value={addPartName} onChange={(e) => setAddPartName(e.target.value)} placeholder="Parça adı" />
+                                <svg className="w-4 h-4 text-slate-500 ml-2" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                               </div>
                             </div>
                           );
                         })()
-                      ) : (
-                        <input type="text" className="input input-bordered" value={addPartName} onChange={(e) => setAddPartName(e.target.value)} placeholder="Önce ürün seçin" disabled />
-                      )
-                    ) : (
-                      (() => {
-                        const independentParts = sparePartsFromOutlet.filter(s => !s.productId);
-                        return independentParts && independentParts.length > 0 ? (
-                          <div>
-                            <div className="relative">
-                              <div className="select select-bordered flex items-center rounded-xl px-3">
-                                <input
-                                  list="independent-parts-list"
-                                  className="flex-1 bg-transparent border-0 outline-none py-2"
-                                  value={addPartName}
-                                  onChange={(e) => setAddPartName(e.target.value)}
-                                  placeholder="Parça seçin veya yazın"
-                                />
-                                <svg className="w-4 h-4 text-slate-500 ml-2" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                              </div>
-                              <datalist id="independent-parts-list">
-                                {independentParts.map(sp => (
-                                  <option key={sp.id} value={sp.parcaNo || sp.partNumber || sp.title || sp.id} />
-                                ))}
-                              </datalist>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="relative">
-                            <div className="select select-bordered flex items-center rounded-xl px-3">
-                              <input type="text" className="flex-1 bg-transparent border-0 outline-none py-2" value={addPartName} onChange={(e) => setAddPartName(e.target.value)} placeholder="Parça adı" />
-                              <svg className="w-4 h-4 text-slate-500 ml-2" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                            </div>
-                          </div>
-                        );
-                      })()
-                    )}
-                  </div>
+                      )}
+                    </div>
                   <div className="form-control">
                     <label className="label"><span className="label-text">Adet</span></label>
                     <input type="number" min={1} className="input input-bordered" value={addPartQuantity} onChange={(e) => setAddPartQuantity(Number(e.target.value))} />
@@ -755,12 +754,12 @@ export default function IslemEkle(props) {
 
       <div className="grid grid-cols-1 gap-6 mt-4">
         <div className="bg-white shadow-xl rounded-2xl p-6">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="text-md font-semibold text-slate-800">Yapan Kişiler</h4>
-            <div>
-              <button className="btn btn-ghost btn-sm" onClick={() => navigate('/settings/suggestions#yapan')}>Yönet</button>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-md font-semibold text-slate-800">Yapan Kişiler</h4>
+              <div>
+                <button className="btn btn-ghost btn-sm" onClick={() => navigate('/settings/suggestions#yapan')}>Yönet</button>
+              </div>
             </div>
-          </div>
           <p className="text-xs text-slate-500 mb-3">İşlemi gerçekleştiren kişileri seçin. İsterseniz "Diğer" seçeneği ile serbest metin girebilirsiniz.</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
@@ -768,7 +767,7 @@ export default function IslemEkle(props) {
               <div className="flex gap-2">
                 <select className="select select-bordered flex-1" value={yapan1} onChange={(e) => setYapan1(e.target.value)} disabled={!selectedRecordId}>
                   <option value="">-- Seçin --</option>
-                  {peopleOptions.slice(0, 4).map((p) => (<option key={p} value={p}>{p}</option>))}
+                  {peopleOptions.slice(0,4).map((p) => (<option key={p} value={p}>{p}</option>))}
                   <option value="other">Diğer (yaz)</option>
                 </select>
               </div>
@@ -782,7 +781,7 @@ export default function IslemEkle(props) {
               <div className="flex gap-2">
                 <select className="select select-bordered flex-1" value={yapan2} onChange={(e) => setYapan2(e.target.value)} disabled={!selectedRecordId}>
                   <option value="">-- Seçin --</option>
-                  {peopleOptions.slice(0, 4).map((p) => (<option key={p + "2"} value={p}>{p}</option>))}
+                  {peopleOptions.slice(0,4).map((p) => (<option key={p+"2"} value={p}>{p}</option>))}
                   <option value="other">Diğer (yaz)</option>
                 </select>
               </div>
@@ -801,7 +800,7 @@ export default function IslemEkle(props) {
             const files = e.target.files ? Array.from(e.target.files) : [];
             if (files.length > 7) {
               setPhotoError('En fazla 7 fotoğraf seçebilirsiniz.');
-              setPhotoFiles(files.slice(0, 7));
+              setPhotoFiles(files.slice(0,7));
             } else {
               setPhotoFiles(files);
             }
@@ -812,7 +811,7 @@ export default function IslemEkle(props) {
               <div className="text-sm font-medium">Seçilenler:</div>
               <ul className="mt-2">
                 {photoFiles.map((f, i) => (
-                  <li key={i} className="text-xs text-slate-700">{f.name} — {(f.size / 1024).toFixed(1)} KB</li>
+                  <li key={i} className="text-xs text-slate-700">{f.name} — {(f.size/1024).toFixed(1)} KB</li>
                 ))}
               </ul>
             </div>
@@ -845,7 +844,7 @@ export default function IslemEkle(props) {
       </div>
 
       <div className="flex justify-between items-center gap-3 mt-6">
-        <button
+        <button 
           onClick={async () => {
             if (!selectedRecordId || !selectedRecord) return;
             setTemplatesLoading(true);
@@ -861,13 +860,13 @@ export default function IslemEkle(props) {
               setTemplatesLoading(false);
             }
           }}
-          className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold shadow-md hover:opacity-90 transition"
+          className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold shadow-md hover:opacity-90 transition" 
           disabled={!selectedRecordId || templatesLoading}
         >
           {templatesLoading ? 'Yükleniyor...' : 'Şablonlar'}
         </button>
         <div className="flex gap-3">
-          <button
+          <button 
             onClick={() => {
               if (!selectedRecordId) return;
               if (islemEkleme.changedParts.length === 0 && islemEkleme.serviceItems.length === 0) {
@@ -876,26 +875,17 @@ export default function IslemEkle(props) {
               }
               setShowSaveTemplateModal(true);
             }}
-            className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold shadow-md hover:opacity-90 transition"
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold shadow-md hover:opacity-90 transition" 
             disabled={!selectedRecordId}
           >
             Şablon Olarak Kaydet
           </button>
-          <button
-            onClick={async () => {
-              if (selectedRecordId && !isSaving) {
-                try {
-                  setIsSaving(true);
-                  await createOperation(selectedRecordId);
-                } finally {
-                  setIsSaving(false);
-                }
-              }
-            }}
-            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold shadow-md hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={!selectedRecordId || isSaving}
+          <button 
+            onClick={async () => { if (selectedRecordId) await createOperation(selectedRecordId); }} 
+            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold shadow-md hover:opacity-90 transition" 
+            disabled={!selectedRecordId}
           >
-            {isSaving ? 'Kaydediliyor...' : 'Kaydet (İşlem Ekle)'}
+            Kaydet (İşlem Ekle)
           </button>
         </div>
       </div>
@@ -912,22 +902,22 @@ export default function IslemEkle(props) {
               <label className="label">
                 <span className="label-text font-semibold">Şablon Adı</span>
               </label>
-              <input
-                type="text"
-                className="input input-bordered w-full"
-                placeholder="Örn: Standart Bakım, Yağ Değişimi"
+              <input 
+                type="text" 
+                className="input input-bordered w-full" 
+                placeholder="Örn: Standart Bakım, Yağ Değişimi" 
                 value={templateName}
                 onChange={(e) => setTemplateName(e.target.value)}
               />
             </div>
             <div className="flex gap-3 justify-end">
-              <button
+              <button 
                 onClick={() => { setShowSaveTemplateModal(false); setTemplateName(''); }}
                 className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 transition"
               >
                 İptal
               </button>
-              <button
+              <button 
                 onClick={async () => {
                   if (!templateName.trim()) {
                     try { outlet.setNotification?.({ type: 'warning', message: 'Şablon adı girin.' }); } catch (e) { /* ignore */ }
@@ -987,14 +977,14 @@ export default function IslemEkle(props) {
                     <div>Hizmetler: {JSON.parse((t.serviceItemsJson ?? t.ServiceItemsJson) || '[]').length}</div>
                   </div>
                   <div className="flex gap-2">
-                    <button
+                    <button 
                       onClick={(e) => { e.stopPropagation(); loadTemplate(t); }}
                       className="btn btn-sm btn-primary"
                     >
                       Yükle
                     </button>
-                    <button
-                      onClick={async (e) => { e.stopPropagation(); if (!window.confirm('Bu şablonu silmek istediğinizden emin misiniz?')) return; try { await serviceApi.deleteServiceTemplate(t.id); setTemplates(prev => prev.filter(x => x.id !== t.id)); try { outlet.setNotification?.({ type: 'success', message: 'Şablon silindi.' }); } catch (e) { } } catch (err) { console.error('Could not delete template', err); try { outlet.setNotification?.({ type: 'error', message: 'Şablon silinemedi.' }); } catch (e) { } } }}
+                    <button 
+                      onClick={async (e) => { e.stopPropagation(); if (!window.confirm('Bu şablonu silmek istediğinizden emin misiniz?')) return; try { await serviceApi.deleteServiceTemplate(t.id); setTemplates(prev => prev.filter(x => x.id !== t.id)); try { outlet.setNotification?.({ type: 'success', message: 'Şablon silindi.' }); } catch (e) {} } catch (err) { console.error('Could not delete template', err); try { outlet.setNotification?.({ type: 'error', message: 'Şablon silinemedi.' }); } catch (e) {} } }}
                       className="btn btn-sm btn-error"
                     >
                       Sil
@@ -1004,7 +994,7 @@ export default function IslemEkle(props) {
               ))}
             </div>
             <div className="flex justify-end mt-4">
-              <button
+              <button 
                 onClick={() => setShowLoadTemplateModal(false)}
                 className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 transition"
               >
@@ -1024,7 +1014,7 @@ export default function IslemEkle(props) {
               <p className="text-sm text-slate-600 mb-6">
                 Telefonunuzdan aşağıdaki QR kodu okutun veya linki açın:
               </p>
-
+              
               {/* QR Code */}
               {(() => {
                 // Build foto link using same origin so QR/link reflects current access (IP + port)
@@ -1033,7 +1023,7 @@ export default function IslemEkle(props) {
                   <>
                     <div className="flex justify-center mb-6">
                       <div className="bg-white p-4 rounded-xl border-4 border-slate-200 inline-block">
-                        <QRCodeSVG
+                        <QRCodeSVG 
                           value={fotoLink}
                           size={200}
                           level="H"

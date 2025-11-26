@@ -275,52 +275,129 @@ namespace KetenErp.Api.Controllers
                             if (headerRow > 0 && skuCol > 0) break;
                         }
 
-                        if (headerRow == 0 || skuCol == 0)
+                        if (headerRow == 0 || (skuCol == 0 && descCol == 0))
                         {
-                            errors.Add("Excel dosyasında 'Kart Kodu' sütunu bulunamadı.");
+                            errors.Add("Excel dosyasında 'Kart Kodu' veya 'Açıklama' sütunu bulunamadı.");
                             return BadRequest(new { message = "Geçersiz Excel formatı", errors });
                         }
 
                         // Get all products for matching
                         var allProducts = await _productRepo.GetAllAsync();
 
+                        // Regex for Part Number Extraction (Existing)
+                        // Matches: P/NO:16, P.NO: 12, PNO13D, PP.NO:33, P.NO:A4, PNO1-D
+                        var partNoRegex = new Regex(@"(?i)(?:P|PP)(?:[\.\/\s-]*(?:NO|N)[\.:\s-]*)([a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)?)|(?<![a-zA-Z])P(\d+[a-zA-Z]?)", RegexOptions.Compiled);
+                        
+                        // Regex for Product SKU Extraction (New)
+                        // Matches patterns like AE-S600PF, 12-345, ABC-123
+                        var skuRegex = new Regex(@"\b[A-Z0-9]+-[A-Z0-9]+\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
                         // Process data rows
                         for (int row = headerRow + 1; row <= worksheet.Dimension.Rows; row++)
                         {
                             try
                             {
-                                var kartKodu = worksheet.Cells[row, skuCol].Text?.Trim();
-                                if (string.IsNullOrWhiteSpace(kartKodu)) continue;
-
+                                var kartKodu = skuCol > 0 ? worksheet.Cells[row, skuCol].Text?.Trim() : "";
                                 var description = descCol > 0 ? worksheet.Cells[row, descCol].Text?.Trim() : "";
+                                
+                                if (string.IsNullOrWhiteSpace(kartKodu) && string.IsNullOrWhiteSpace(description)) continue;
+
                                 var stockText = stockCol > 0 ? worksheet.Cells[row, stockCol].Text?.Trim() : "0";
                                 var stock = ParseStock(stockText);
 
-                                // Parse SKU format: "A10-M15C21P14" where P14 is part number
-                                // Pattern: look for last occurrence of "P" followed by digits
-                                var match = Regex.Match(kartKodu, @"^(.+?)P(\d+)$", RegexOptions.IgnoreCase);
-                                
-                                string productSku = "";
                                 string partNumber = "";
-                                
-                                if (match.Success)
+                                string productSku = "";
+                                Product? matchedProduct = null;
+
+                                // 1. Try to extract Part Number from Description (P/NO logic)
+                                var descMatch = partNoRegex.Match(description);
+                                if (descMatch.Success)
                                 {
-                                    productSku = match.Groups[1].Value.TrimEnd('-');
-                                    partNumber = "P" + match.Groups[2].Value;
+                                    partNumber = !string.IsNullOrEmpty(descMatch.Groups[1].Value) 
+                                        ? descMatch.Groups[1].Value 
+                                        : descMatch.Groups[2].Value;
+                                }
+
+                                // 2. Try to extract Part Number from SKU (Kart Kodu)
+                                if (!string.IsNullOrEmpty(kartKodu))
+                                {
+                                    var skuMatch = partNoRegex.Match(kartKodu);
+                                    if (skuMatch.Success)
+                                    {
+                                        var pn = !string.IsNullOrEmpty(skuMatch.Groups[1].Value)
+                                            ? skuMatch.Groups[1].Value
+                                            : skuMatch.Groups[2].Value;
+                                        
+                                        if (string.IsNullOrEmpty(partNumber)) partNumber = pn;
+                                    }
+                                }
+
+                                // 3. Try to extract Product SKU from Description (New Logic)
+                                // Look for patterns like AE-S600PF anywhere in the description
+                                var skuInDescMatch = skuRegex.Match(description);
+                                string extractedSku = "";
+                                if (skuInDescMatch.Success)
+                                {
+                                    extractedSku = skuInDescMatch.Value;
+                                }
+
+                                // 4. Determine Final Part Number
+                                if (string.IsNullOrEmpty(partNumber))
+                                {
+                                    // If no P/NO found, use extracted SKU if available, otherwise KartKodu
+                                    if (!string.IsNullOrEmpty(extractedSku))
+                                    {
+                                        // If we found a SKU in description but no P/NO, maybe the SKU is the part identifier?
+                                        // Or we generate a part number? For now, let's use the extracted SKU as a fallback part number
+                                        partNumber = extractedSku;
+                                    }
+                                    else if (!string.IsNullOrEmpty(kartKodu))
+                                    {
+                                        partNumber = kartKodu;
+                                    }
+                                    else
+                                    {
+                                        // Fallback if everything is missing (unlikely due to check above)
+                                        partNumber = "UNKNOWN-" + Guid.NewGuid().ToString().Substring(0, 8);
+                                    }
+                                }
+                                
+                                // 5. Match Product
+                                // Priority 1: Match by extracted SKU from description
+                                if (!string.IsNullOrEmpty(extractedSku))
+                                {
+                                    var normalized = extractedSku.Replace("-", "").Replace(" ", "");
+                                    matchedProduct = allProducts.FirstOrDefault(p => 
+                                        (p.SKU ?? "").Replace("-", "").Replace(" ", "").Equals(normalized, StringComparison.OrdinalIgnoreCase));
+                                }
+
+                                // Priority 2: Match by KartKodu (if it looks like a product SKU)
+                                if (matchedProduct == null && !string.IsNullOrEmpty(kartKodu))
+                                {
+                                    // Try exact match first
+                                    matchedProduct = allProducts.FirstOrDefault(p => 
+                                        (p.SKU ?? "").Equals(kartKodu, StringComparison.OrdinalIgnoreCase));
+                                    
+                                    // Try fuzzy match (stripping P/NO if present)
+                                    if (matchedProduct == null && !string.IsNullOrEmpty(partNumber) && kartKodu.EndsWith(partNumber, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        var candidate = kartKodu.Substring(0, kartKodu.Length - partNumber.Length).Trim('-', ' ', '.');
+                                        if (!string.IsNullOrEmpty(candidate))
+                                        {
+                                            matchedProduct = allProducts.FirstOrDefault(p => 
+                                                (p.SKU ?? "").Equals(candidate, StringComparison.OrdinalIgnoreCase));
+                                        }
+                                    }
+                                }
+
+                                // Set final Product SKU string
+                                if (matchedProduct != null)
+                                {
+                                    productSku = matchedProduct.SKU;
                                 }
                                 else
                                 {
-                                    // No P pattern found - treat whole string as independent part
-                                    partNumber = kartKodu;
-                                }
-
-                                // Find matching product by SKU prefix (ignore dashes/hyphens)
-                                Product? matchedProduct = null;
-                                if (!string.IsNullOrWhiteSpace(productSku))
-                                {
-                                    var normalizedProductSku = productSku.Replace("-", "").Replace(" ", "");
-                                    matchedProduct = allProducts.FirstOrDefault(p => 
-                                        (p.SKU ?? "").Replace("-", "").Replace(" ", "").Equals(normalizedProductSku, StringComparison.OrdinalIgnoreCase));
+                                    productSku = !string.IsNullOrEmpty(extractedSku) ? extractedSku : (kartKodu ?? "");
                                 }
 
                                 // Check if spare part exists
@@ -335,6 +412,15 @@ namespace KetenErp.Api.Controllers
                                     existing.Stock = stock;
                                     if (!string.IsNullOrWhiteSpace(description))
                                         existing.Title = description;
+                                    
+                                    // If we found a better product match, update it? 
+                                    // Maybe safer to only update if currently null
+                                    if (existing.ProductId == null && matchedProduct != null)
+                                    {
+                                        existing.ProductId = matchedProduct.Id;
+                                        existing.SKU = matchedProduct.SKU;
+                                    }
+
                                     await _sparePartRepo.UpdateAsync(existing);
                                     updated++;
                                 }
@@ -343,9 +429,9 @@ namespace KetenErp.Api.Controllers
                                     // Create new spare part
                                     var newPart = new SparePart
                                     {
-                                        SKU = matchedProduct?.SKU ?? null,
+                                        SKU = matchedProduct?.SKU ?? productSku, // Use matched SKU or the extracted string
                                         PartNumber = partNumber,
-                                        Title = description ?? partNumber,
+                                        Title = !string.IsNullOrWhiteSpace(description) ? description : partNumber,
                                         ProductId = matchedProduct?.Id,
                                         Stock = stock,
                                         MinStock = 0

@@ -83,6 +83,7 @@ namespace KetenErp.Infrastructure.Data
     public DbSet<KetenErp.Core.Entities.RefreshToken> RefreshTokens { get; set; } = null!;
     // Email accounts for sending offers
     public DbSet<KetenErp.Core.Entities.EmailAccount> EmailAccounts { get; set; } = null!;
+    public DbSet<KetenErp.Core.Entities.SalesDemoRecord> SalesDemoRecords { get; set; } = null!;
         
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -126,6 +127,16 @@ namespace KetenErp.Infrastructure.Data
                 entity.Property(e => e.UserId).IsRequired();
                 entity.Property(e => e.ExpiresAt).IsRequired();
                 entity.Property(e => e.CreatedAt).IsRequired();
+            });
+
+            modelBuilder.Entity<KetenErp.Core.Entities.SalesDemoRecord>(entity =>
+            {
+                entity.ToTable("SalesDemoRecords");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.SalesPersonId).IsRequired();
+                entity.Property(e => e.TargetCompany).IsRequired();
+                entity.Property(e => e.TakenDate).IsRequired();
+                entity.Property(e => e.Status).IsRequired();
             });
 
             foreach (var entityType in modelBuilder.Model.GetEntityTypes())

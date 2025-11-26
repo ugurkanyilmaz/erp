@@ -344,6 +344,33 @@ namespace KetenErp.Api
                 Console.WriteLine($"Could not ensure EmailAccounts: {ex.Message}");
             }
 
+            // SalesDemoRecords
+            try
+            {
+                var conn = db.Database.GetDbConnection();
+                if (conn.State != System.Data.ConnectionState.Open)
+                    conn.Open();
+                    
+                using var cmd = conn.CreateCommand();
+                    cmd.CommandText = @"
+                        CREATE TABLE IF NOT EXISTS salesdemorecords (
+                            id SERIAL PRIMARY KEY,
+                            productid INTEGER NOT NULL,
+                            salespersonid TEXT NOT NULL,
+                            targetcompany TEXT NOT NULL,
+                            takendate TIMESTAMP WITH TIME ZONE NOT NULL,
+                            returndate TIMESTAMP WITH TIME ZONE,
+                            status TEXT NOT NULL,
+                            notes TEXT
+                        );";
+                cmd.ExecuteNonQuery();
+                Console.WriteLine("Ensured SalesDemoRecords table exists.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Could not ensure SalesDemoRecords: {ex.Message}");
+            }
+
             // RefreshTokens
             try
             {
@@ -371,7 +398,7 @@ namespace KetenErp.Api
             }
 
             // Roles
-            string[] roles = { "admin", "servis", "muhasebe", "user" };
+            string[] roles = { "admin", "servis", "muhasebe", "user", "satis" };
             foreach (var role in roles)
             {
                 if (!await roleManager.RoleExistsAsync(role))
@@ -406,6 +433,12 @@ namespace KetenErp.Api
             await EnsureUser("ugur", "ugur@havalielaletleritamiri.com", "ugur762.", "admin", "Uğur Yılmaz - Admin");
             await EnsureUser("muhasebe", "muhasebe@havalielaletleritamiri.com", "keten@4145!", "muhasebe", "Muhasebe");
             await EnsureUser("teknik", "teknik@havalielaletleritamiri.com", "servis@1234", "servis", "Teknik Servis");
+            
+            // Sales Users
+            await EnsureUser("satis1", "satis1@havalielaletleritamiri.com", "satis123", "satis", "Satış 1");
+            await EnsureUser("satis2", "satis2@havalielaletleritamiri.com", "satis123", "satis", "Satış 2");
+            await EnsureUser("satis3", "satis3@havalielaletleritamiri.com", "satis123", "satis", "Satış 3");
+            await EnsureUser("satis4", "satis4@havalielaletleritamiri.com", "satis123", "satis", "Satış 4");
         }
     }
 }

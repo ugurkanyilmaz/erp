@@ -9,7 +9,7 @@ export default function ERPDashboard() {
     { id: 2, title: 'Servis Takip', icon: Wrench, color: 'bg-violet-500', count: '42' },
     { id: 3, title: 'Fatura İşlemleri', icon: FileText, color: 'bg-emerald-500', count: '156' },
     { id: 4, title: 'Müşteri Yönetimi', icon: Users, color: 'bg-orange-500', count: '342' },
-    { id: 5, title: 'Satış Yönetimi', icon: ShoppingCart, color: 'bg-pink-500', count: '89' },
+    { id: 5, title: 'Satış Demo', icon: ShoppingCart, color: 'bg-pink-500', count: '89' },
     { id: 6, title: 'Raporlar', icon: BarChart3, color: 'bg-indigo-500', count: '24' },
     { id: 7, title: 'Arşiv', icon: Archive, color: 'bg-cyan-500', count: '-' },
     { id: 8, title: 'Ayarlar', icon: Settings, color: 'bg-slate-500', count: '-' }
@@ -19,15 +19,15 @@ export default function ERPDashboard() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       <Header title="Keten Pnömatik" subtitle="Yönetim Paneli" IconComponent={Wrench} showNew={true} showSearch={true} />
 
-  {/* Main Content */}
-  <main className="w-full px-6 py-12">
+      {/* Main Content */}
+      <main className="w-full px-6 py-12">
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-slate-800 mb-2">Hoş Geldiniz</h2>
           <p className="text-slate-600">İşlemlerinize devam etmek için bir modül seçin</p>
         </div>
 
         {/* Module Grid */}
-  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {modules.map((module) => {
             const Icon = module.icon;
             const card = (
@@ -41,11 +41,11 @@ export default function ERPDashboard() {
                       <div className="badge badge-ghost badge-lg font-semibold">{module.count}</div>
                     )}
                   </div>
-                  
+
                   <h3 className="text-lg font-bold text-slate-800 group-hover:text-blue-600 transition-colors">
                     {module.title}
                   </h3>
-                  
+
                   <button className="btn btn-sm btn-outline btn-primary mt-4 opacity-0 group-hover:opacity-100 transition-opacity">
                     Modülü Aç →
                   </button>
@@ -93,6 +93,15 @@ export default function ERPDashboard() {
             if (module.title === 'Arşiv') {
               return (
                 <Link key={module.id} to="/archive" className="block">
+                  {card}
+                </Link>
+              )
+            }
+
+            // Make the Sales Demo card link to the Sales Demo page
+            if (module.title === 'Satış Demo') {
+              return (
+                <Link key={module.id} to="/sales-demo" className="block">
                   {card}
                 </Link>
               )

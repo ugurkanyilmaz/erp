@@ -17,6 +17,7 @@ import SentQuotes from './pages/sent_quotes';
 import Invoices from './pages/invoices';
 import CompletedServices from './pages/completed_services';
 import Login from './pages/login';
+import SalesDemo from './pages/sales_demo';
 import ProtectedRoute from './components/ProtectedRoute';
 import './App.css'
 
@@ -24,29 +25,30 @@ function App() {
   return (
     <BrowserRouter>
       <main className="p-0 min-h-screen">
-          <Routes>
-            <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/teknik-servis/*" element={<ProtectedRoute roles={[ 'admin', 'servis', 'muhasebe' ]}><TeknikServis /></ProtectedRoute>}>
-              <Route index element={<TeknikServisList />} />
-              <Route path="new" element={<TeknikServisNew />} />
-              <Route path="muhasebe" element={<TeknikServisMuhasebe />} />
-              <Route path="islem-ekle" element={<TeknikServisIslemEkle />} />
-              <Route path="foto" element={<TeknikServisFoto />} />
-            </Route>
-            <Route path="/stock" element={<ProtectedRoute roles={[ 'admin', 'muhasebe' ]}><StockProducts /></ProtectedRoute>} />
-            <Route path="/stock/products" element={<ProtectedRoute roles={[ 'admin', 'muhasebe' ]}><StockProducts /></ProtectedRoute>} />
-            <Route path="/stock/parts" element={<ProtectedRoute roles={[ 'admin', 'muhasebe' ]}><StockParts /></ProtectedRoute>} />
-            <Route path="/settings" element={<ProtectedRoute roles={[ 'admin', 'muhasebe' ]}><SettingsLanding /></ProtectedRoute>} />
-            <Route path="/settings/suggestions" element={<ProtectedRoute roles={[ 'admin', 'muhasebe' ]}><SettingsSuggestions /></ProtectedRoute>} />
-            <Route path="/settings/email" element={<ProtectedRoute roles={[ 'admin', 'muhasebe' ]}><SettingsEmail /></ProtectedRoute>} />
-            <Route path="/archive" element={<ProtectedRoute roles={[ 'admin', 'muhasebe' ]}><ArchivePage /></ProtectedRoute>} />
-            <Route path="/archive/sent-quotes" element={<ProtectedRoute roles={[ 'admin', 'muhasebe' ]}><SentQuotes /></ProtectedRoute>} />
-            <Route path="/archive/invoices" element={<ProtectedRoute roles={[ 'admin', 'muhasebe' ]}><Invoices /></ProtectedRoute>} />
-            <Route path="/archive/completed-services" element={<ProtectedRoute roles={[ 'admin', 'muhasebe' ]}><CompletedServices /></ProtectedRoute>} />
-            <Route path="/customers" element={<ProtectedRoute roles={[ 'admin', 'muhasebe' ]}><MusteriYonetimi /></ProtectedRoute>} />
-          </Routes>
-        </main>
+        <Routes>
+          <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/teknik-servis/*" element={<ProtectedRoute roles={['admin', 'servis', 'muhasebe']}><TeknikServis /></ProtectedRoute>}>
+            <Route index element={<TeknikServisList />} />
+            <Route path="new" element={<TeknikServisNew />} />
+            <Route path="muhasebe" element={<TeknikServisMuhasebe />} />
+            <Route path="islem-ekle" element={<TeknikServisIslemEkle />} />
+            <Route path="foto" element={<TeknikServisFoto />} />
+          </Route>
+          <Route path="/stock" element={<ProtectedRoute roles={['admin', 'muhasebe']}><StockProducts /></ProtectedRoute>} />
+          <Route path="/stock/products" element={<ProtectedRoute roles={['admin', 'muhasebe']}><StockProducts /></ProtectedRoute>} />
+          <Route path="/stock/parts" element={<ProtectedRoute roles={['admin', 'muhasebe']}><StockParts /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute roles={['admin', 'muhasebe']}><SettingsLanding /></ProtectedRoute>} />
+          <Route path="/settings/suggestions" element={<ProtectedRoute roles={['admin', 'muhasebe']}><SettingsSuggestions /></ProtectedRoute>} />
+          <Route path="/settings/email" element={<ProtectedRoute roles={['admin', 'muhasebe']}><SettingsEmail /></ProtectedRoute>} />
+          <Route path="/archive" element={<ProtectedRoute roles={['admin', 'muhasebe']}><ArchivePage /></ProtectedRoute>} />
+          <Route path="/archive/sent-quotes" element={<ProtectedRoute roles={['admin', 'muhasebe']}><SentQuotes /></ProtectedRoute>} />
+          <Route path="/archive/invoices" element={<ProtectedRoute roles={['admin', 'muhasebe']}><Invoices /></ProtectedRoute>} />
+          <Route path="/archive/completed-services" element={<ProtectedRoute roles={['admin', 'muhasebe']}><CompletedServices /></ProtectedRoute>} />
+          <Route path="/customers" element={<ProtectedRoute roles={['admin', 'muhasebe']}><MusteriYonetimi /></ProtectedRoute>} />
+          <Route path="/sales-demo" element={<ProtectedRoute roles={['admin', 'muhasebe', 'satis']}><SalesDemo /></ProtectedRoute>} />
+        </Routes>
+      </main>
     </BrowserRouter>
   )
 }
