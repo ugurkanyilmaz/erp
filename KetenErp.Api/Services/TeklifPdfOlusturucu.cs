@@ -291,34 +291,44 @@ namespace KetenErp.Api.Services
                                     }
 
                                     // Render a row of thumbnails (max 7)
-                                    urunCol.Item().PaddingTop(6).Row(photoRow =>
-                                    {
-                                        var shown = 0;
-                                        foreach (var p in urun.PhotoPaths.Take(7))
-                                        {
-                                            try
-                                            {
-                                                if (!string.IsNullOrWhiteSpace(p) && System.IO.File.Exists(p))
-                                                {
-                                                    // reserve smaller constant width for each thumbnail (reduced size)
-                                                    photoRow.ConstantItem(56).Height(44).PaddingRight(4).Element(el =>
-                                                    {
-                                                        el.Image(p).FitArea();
-                                                    });
-                                                    shown++;
-                                                }
-                                            }
-                                            catch (Exception ex)
-                                            {
-                                                Console.WriteLine("[PDF] Photo render error: " + ex.Message);
-                                            }
-                                        }
+                                    // Render a row of thumbnails (unlimited, wrapping using manual rows)
+                                    var validPhotos = urun.PhotoPaths
+                                        .Where(p => !string.IsNullOrWhiteSpace(p) && System.IO.File.Exists(p))
+                                        .ToList();
 
-                                        if (shown == 0)
+                                    if (validPhotos.Count > 0)
+                                    {
+                                        urunCol.Item().PaddingTop(6).Column(photoGrid =>
                                         {
-                                            photoRow.RelativeItem().Text("(Fotoğraf yok)").FontSize(8).FontColor("#9E9E9E");
-                                        }
-                                    });
+                                            var columns = 8;
+                                            var rows = (int)Math.Ceiling(validPhotos.Count / (double)columns);
+
+                                            for (var r = 0; r < rows; r++)
+                                            {
+                                                photoGrid.Item().PaddingBottom(4).Row(row =>
+                                                {
+                                                    row.Spacing(4);
+                                                    for (var c = 0; c < columns; c++)
+                                                    {
+                                                        var index = r * columns + c;
+                                                        if (index < validPhotos.Count)
+                                                        {
+                                                            row.RelativeItem().Height(44).Image(validPhotos[index]).FitArea();
+                                                        }
+                                                        else
+                                                        {
+                                                            // Empty item to maintain column width
+                                                            row.RelativeItem();
+                                                        }
+                                                    }
+                                                });
+                                            }
+                                        });
+                                    }
+                                    else
+                                    {
+                                        urunCol.Item().PaddingTop(6).Text("(Fotoğraf yok)").FontSize(8).FontColor("#9E9E9E");
+                                    }
                                 }
 
 
@@ -520,12 +530,23 @@ namespace KetenErp.Api.Services
                             var beforeColon = mainPart.Substring(0, colonIndex).Trim();
                             var afterColon = mainPart.Substring(colonIndex + 1).Trim();
 
-                            // Miktar parse et (parça için)
-                            if (isPart && beforeColon.Contains(" x"))
+                            // Miktar parse et (parça veya hizmet için)
+                            // Supports "Name x5" or "Name (x5)"
+                            if (beforeColon.Contains(" x"))
                             {
                                 var xIndex = beforeColon.LastIndexOf(" x");
                                 name = beforeColon.Substring(0, xIndex).Trim();
                                 qty = beforeColon.Substring(xIndex + 2).Trim();
+                            }
+                            else if (beforeColon.Contains(" (x"))
+                            {
+                                var xIndex = beforeColon.LastIndexOf(" (x");
+                                name = beforeColon.Substring(0, xIndex).Trim();
+                                var endParen = beforeColon.IndexOf(')', xIndex);
+                                if (endParen > xIndex)
+                                {
+                                    qty = beforeColon.Substring(xIndex + 3, endParen - (xIndex + 3)).Trim();
+                                }
                             }
                             else
                             {
@@ -551,7 +572,7 @@ namespace KetenErp.Api.Services
                         }
 
                         // Toplam hesapla (miktar varsa)
-                        if (isPart && decimal.TryParse(qty.Replace(",", "."), System.Globalization.NumberStyles.Any, 
+                        if (decimal.TryParse(qty.Replace(",", "."), System.Globalization.NumberStyles.Any, 
                             System.Globalization.CultureInfo.InvariantCulture, out var qtyVal))
                         {
                             // Remove currency symbols and whitespace
@@ -584,11 +605,21 @@ namespace KetenErp.Api.Services
                             var beforeColon = content.Substring(0, colonIndex).Trim();
                             var afterColon = content.Substring(colonIndex + 1).Trim();
 
-                            if (isPart && beforeColon.Contains(" x"))
+                            if (beforeColon.Contains(" x"))
                             {
                                 var xIndex = beforeColon.LastIndexOf(" x");
                                 name = beforeColon.Substring(0, xIndex).Trim();
                                 qty = beforeColon.Substring(xIndex + 2).Trim();
+                            }
+                            else if (beforeColon.Contains(" (x"))
+                            {
+                                var xIndex = beforeColon.LastIndexOf(" (x");
+                                name = beforeColon.Substring(0, xIndex).Trim();
+                                var endParen = beforeColon.IndexOf(')', xIndex);
+                                if (endParen > xIndex)
+                                {
+                                    qty = beforeColon.Substring(xIndex + 3, endParen - (xIndex + 3)).Trim();
+                                }
                             }
                             else
                             {

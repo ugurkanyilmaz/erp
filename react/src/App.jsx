@@ -18,6 +18,7 @@ import Invoices from './pages/invoices';
 import CompletedServices from './pages/completed_services';
 import Login from './pages/login';
 import SalesDemo from './pages/sales_demo';
+import AdminUsersPage from './pages/admin/AdminUsersPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import './App.css'
 
@@ -47,6 +48,7 @@ function App() {
           <Route path="/archive/completed-services" element={<ProtectedRoute roles={['admin', 'muhasebe']}><CompletedServices /></ProtectedRoute>} />
           <Route path="/customers" element={<ProtectedRoute roles={['admin', 'muhasebe']}><MusteriYonetimi /></ProtectedRoute>} />
           <Route path="/sales-demo" element={<ProtectedRoute roles={['admin', 'muhasebe', 'satis']}><SalesDemo /></ProtectedRoute>} />
+          <Route path="/settings/users" element={<ProtectedRoute roles={['admin']}><AdminUsersPage /></ProtectedRoute>} />
         </Routes>
       </main>
     </BrowserRouter>

@@ -344,16 +344,15 @@ namespace KetenErp.Api.Controllers
                                 // 4. Determine Final Part Number
                                 if (string.IsNullOrEmpty(partNumber))
                                 {
-                                    // If no P/NO found, use extracted SKU if available, otherwise KartKodu
-                                    if (!string.IsNullOrEmpty(extractedSku))
-                                    {
-                                        // If we found a SKU in description but no P/NO, maybe the SKU is the part identifier?
-                                        // Or we generate a part number? For now, let's use the extracted SKU as a fallback part number
-                                        partNumber = extractedSku;
-                                    }
-                                    else if (!string.IsNullOrEmpty(kartKodu))
+                                    // If no P/NO found, prefer KartKodu as the part number
+                                    if (!string.IsNullOrEmpty(kartKodu))
                                     {
                                         partNumber = kartKodu;
+                                    }
+                                    else if (!string.IsNullOrEmpty(extractedSku))
+                                    {
+                                        // Fallback to extracted SKU if KartKodu is also missing
+                                        partNumber = extractedSku;
                                     }
                                     else
                                     {

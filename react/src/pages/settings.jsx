@@ -7,7 +7,7 @@ export default function SettingsLanding() {
   const modules = [
     { id: 'suggestions', title: 'Hazır Öneriler', desc: 'Teknik servis için alan kişi & yapan kişi önerileri', to: '/settings/suggestions', icon: Wrench, color: 'bg-violet-500' },
     { id: 'email', title: 'E-Posta Hesapları', desc: 'Teklif gönderiminde kullanılacak e-posta hesapları', to: '/settings/email', icon: Users, color: 'bg-emerald-500' },
-    { id: 'users', title: 'Kullanıcı Ayarları', desc: 'Kullanıcı profilleri ve yetkiler', to: '/settings/users', icon: Users, color: 'bg-slate-400' },
+    { id: 'users', title: 'Kullanıcı Ayarları', desc: 'Kullanıcı profilleri ve yetkiler', to: '/settings/users', icon: Users, color: 'bg-blue-500' },
   ];
 
   return (
@@ -26,7 +26,7 @@ export default function SettingsLanding() {
               <Link key={m.id} to={m.to} className="block">
                 <div className="card bg-white shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-100 hover:border-indigo-300 cursor-pointer">
                   <div className="card-body p-6 flex items-start gap-4">
-                    <div className={`${m.color} w-14 h-14 rounded-2xl flex items-center justify-center shadow-md`}> 
+                    <div className={`${m.color} w-14 h-14 rounded-2xl flex items-center justify-center shadow-md`}>
                       <Icon size={22} className="text-white" />
                     </div>
                     <div className="flex-1">
