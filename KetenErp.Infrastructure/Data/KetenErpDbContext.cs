@@ -84,6 +84,13 @@ namespace KetenErp.Infrastructure.Data
     // Email accounts for sending offers
     public DbSet<KetenErp.Core.Entities.EmailAccount> EmailAccounts { get; set; } = null!;
     public DbSet<KetenErp.Core.Entities.SalesDemoRecord> SalesDemoRecords { get; set; } = null!;
+    public DbSet<KetenErp.Core.Entities.Order> Orders { get; set; } = null!;
+    public DbSet<KetenErp.Core.Entities.OrderItem> OrderItems { get; set; } = null!;
+    public DbSet<KetenErp.Core.Entities.IncomingPayment> IncomingPayments { get; set; } = null!;
+    public DbSet<KetenErp.Core.Entities.Sale> Sales { get; set; } = null!;
+    public DbSet<KetenErp.Core.Entities.CommissionRecord> CommissionRecords { get; set; } = null!;
+    public DbSet<KetenErp.Core.Entities.ProductQuote> ProductQuotes { get; set; } = null!;
+    public DbSet<KetenErp.Core.Entities.ProductQuoteItem> ProductQuoteItems { get; set; } = null!;
         
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

@@ -394,7 +394,7 @@ namespace KetenErp.Api.Services
 
                 // Social icons in same column, inline
                 sb.AppendLine("<p style='margin:0;line-height:0;'>");
-                if (!string.IsNullOrEmpty(youtubeCid)) sb.AppendLine($"<a href='https://www.youtube.com/@Keten.Pnomatik' style='margin-right:8px;display:inline-block;'><img src='cid:{youtubeCid}' alt='YouTube' style='width:35px;height:auto;border:0;vertical-align:middle;' /></a>");
+                if (!string.IsNullOrEmpty(youtubeCid)) sb.AppendLine($"<a href='https://www.youtube.com/@Keten.Pnomatik' style='margin-right:8px;display:inline-block;'><img src='cid:{youtubeCid}' alt='YouTube' style='width:45px;height:auto;border:0;vertical-align:middle;' /></a>");
                 if (!string.IsNullOrEmpty(instagramCid)) sb.AppendLine($"<a href='https://www.instagram.com/ketenpnomatik/' style='margin-right:8px;display:inline-block;'><img src='cid:{instagramCid}' alt='Instagram' style='width:32px;height:auto;border:0;vertical-align:middle;' /></a>");
                 if (!string.IsNullOrEmpty(facebookCid)) sb.AppendLine($"<a href='https://www.facebook.com/ketenpnomatik/' style='margin-right:8px;display:inline-block;'><img src='cid:{facebookCid}' alt='Facebook' style='width:35px;height:auto;border:0;vertical-align:middle;' /></a>");
                 if (!string.IsNullOrEmpty(websiteCid)) sb.AppendLine($"<a href='https://www.ketenpnomatik.com.tr/' style='margin-right:8px;display:inline-block;'><img src='cid:{websiteCid}' alt='Website' style='width:35px;height:auto;border:0;vertical-align:middle;' /></a>");

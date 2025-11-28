@@ -1,13 +1,14 @@
 import React from 'react';
-import { Archive, Mail, FileText } from 'lucide-react';
+import { Archive, Mail, FileText, Wrench, Package } from 'lucide-react';
 import Header from '../components/Header';
 import { Link } from 'react-router-dom';
 
 export default function ArchivePage() {
   const items = [
-    { to: '/archive/sent-quotes', label: 'Gönderilen Teklifler', icon: Mail },
-    { to: '/archive/invoices', label: 'Faturalar', icon: FileText },
-    { to: '/archive/completed-services', label: 'Tamamlanan Servisler', icon: FileText },
+    { to: '/archive/service-quotes', label: 'Tamir Teklifleri', description: 'Gönderilen tamir fiyat teklifleri', icon: Wrench },
+    { to: '/archive/product-quotes', label: 'Ürün Teklifleri', description: 'Gönderilen ürün fiyat teklifleri', icon: Package },
+    { to: '/archive/invoices', label: 'Faturalar', description: 'Bu modüle gitmek için tıklayın', icon: FileText },
+    { to: '/archive/completed-services', label: 'Tamamlanan Servisler', description: 'Bu modüle gitmek için tıklayın', icon: FileText },
     // add more modules here as needed
   ];
 
@@ -26,7 +27,7 @@ export default function ArchivePage() {
                   <Icon size={28} className="text-slate-600" />
                   <div>
                     <div className="font-semibold text-lg">{it.label}</div>
-                    <div className="text-sm text-slate-500">Bu modüle gitmek için tıklayın</div>
+                    <div className="text-sm text-slate-500">{it.description}</div>
                   </div>
                 </Link>
               );

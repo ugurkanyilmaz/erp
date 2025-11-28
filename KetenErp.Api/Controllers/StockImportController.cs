@@ -298,7 +298,7 @@ namespace KetenErp.Api.Controllers
                             try
                             {
                                 var kartKodu = skuCol > 0 ? worksheet.Cells[row, skuCol].Text?.Trim() : "";
-                                var description = descCol > 0 ? worksheet.Cells[row, descCol].Text?.Trim() : "";
+                                var description = descCol > 0 ? worksheet.Cells[row, descCol].Text?.Trim() ?? "" : "";
                                 
                                 if (string.IsNullOrWhiteSpace(kartKodu) && string.IsNullOrWhiteSpace(description)) continue;
 
@@ -392,7 +392,7 @@ namespace KetenErp.Api.Controllers
                                 // Set final Product SKU string
                                 if (matchedProduct != null)
                                 {
-                                    productSku = matchedProduct.SKU;
+                                    productSku = matchedProduct.SKU ?? "";
                                 }
                                 else
                                 {

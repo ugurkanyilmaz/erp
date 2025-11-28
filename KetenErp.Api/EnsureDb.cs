@@ -397,6 +397,233 @@ namespace KetenErp.Api
                 Console.WriteLine($"Could not ensure RefreshTokens: {ex.Message}");
             }
 
+            // Orders
+            try
+            {
+                var conn = db.Database.GetDbConnection();
+                if (conn.State != System.Data.ConnectionState.Open)
+                    conn.Open();
+                    
+                using var cmd = conn.CreateCommand();
+                    cmd.CommandText = @"
+                        CREATE TABLE IF NOT EXISTS orders (
+                            id SERIAL PRIMARY KEY,
+                            supplier TEXT NOT NULL,
+                            orderdate TIMESTAMP WITH TIME ZONE NOT NULL,
+                            status TEXT NOT NULL,
+                            isarchived BOOLEAN NOT NULL DEFAULT FALSE
+                        );";
+                cmd.ExecuteNonQuery();
+                Console.WriteLine("Ensured Orders table exists.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Could not ensure Orders: {ex.Message}");
+            }
+
+            // OrderItems
+            try
+            {
+                var conn = db.Database.GetDbConnection();
+                if (conn.State != System.Data.ConnectionState.Open)
+                    conn.Open();
+                    
+                using var cmd = conn.CreateCommand();
+                    cmd.CommandText = @"
+                        CREATE TABLE IF NOT EXISTS orderitems (
+                            id SERIAL PRIMARY KEY,
+                            orderid INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+                            productid INTEGER REFERENCES products(id) ON DELETE SET NULL,
+                            productname TEXT NOT NULL,
+                            quantity INTEGER NOT NULL
+                        );";
+                cmd.ExecuteNonQuery();
+                Console.WriteLine("Ensured OrderItems table exists.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Could not ensure OrderItems: {ex.Message}");
+            }
+
+            // IncomingPayments
+            try
+            {
+                var conn = db.Database.GetDbConnection();
+                if (conn.State != System.Data.ConnectionState.Open)
+                    conn.Open();
+                    
+                using var cmd = conn.CreateCommand();
+                    cmd.CommandText = @"
+                        CREATE TABLE IF NOT EXISTS incomingpayments (
+                            id SERIAL PRIMARY KEY,
+                            targetaccount TEXT NOT NULL,
+                            sender TEXT NOT NULL,
+                            amount NUMERIC NOT NULL,
+                            date TIMESTAMP WITH TIME ZONE NOT NULL
+                        );";
+                cmd.ExecuteNonQuery();
+                Console.WriteLine("Ensured IncomingPayments table exists.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Could not ensure IncomingPayments: {ex.Message}");
+            }
+
+            // Sales
+            try
+            {
+                var conn = db.Database.GetDbConnection();
+                if (conn.State != System.Data.ConnectionState.Open)
+                    conn.Open();
+                    
+                using var cmd = conn.CreateCommand();
+                    cmd.CommandText = @"
+                        CREATE TABLE IF NOT EXISTS sales (
+                            id SERIAL PRIMARY KEY,
+                            customername TEXT NOT NULL,
+                            saleno TEXT NOT NULL,
+                            date TIMESTAMP WITH TIME ZONE NOT NULL,
+                            duedate TIMESTAMP WITH TIME ZONE,
+                            amount NUMERIC NOT NULL,
+                            totalpaidamount NUMERIC NOT NULL DEFAULT 0,
+                            salespersonid TEXT NOT NULL,
+                            iscompleted BOOLEAN NOT NULL DEFAULT FALSE
+                        );";
+                cmd.ExecuteNonQuery();
+                Console.WriteLine("Ensured Sales table exists.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Could not ensure Sales: {ex.Message}");
+            }
+
+            // CommissionRecords
+            try
+            {
+                var conn = db.Database.GetDbConnection();
+                if (conn.State != System.Data.ConnectionState.Open)
+                    conn.Open();
+                    
+                using var cmd = conn.CreateCommand();
+                    cmd.CommandText = @"
+                        CREATE TABLE IF NOT EXISTS commissionrecords (
+                            id SERIAL PRIMARY KEY,
+                            salespersonid TEXT NOT NULL,
+                            saleid INTEGER NOT NULL,
+                            amount NUMERIC NOT NULL,
+                            date TIMESTAMP WITH TIME ZONE NOT NULL,
+                            month INTEGER NOT NULL,
+                            year INTEGER NOT NULL
+                        );";
+                cmd.ExecuteNonQuery();
+                Console.WriteLine("Ensured CommissionRecords table exists.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Could not ensure CommissionRecords: {ex.Message}");
+            }
+
+            // ProductQuotes
+            try
+            {
+                var conn = db.Database.GetDbConnection();
+                if (conn.State != System.Data.ConnectionState.Open)
+                    conn.Open();
+                    
+                using var cmd = conn.CreateCommand();
+                    cmd.CommandText = @"
+                        CREATE TABLE IF NOT EXISTS productquotes (
+                            id SERIAL PRIMARY KEY,
+                            customername TEXT NOT NULL,
+                            customeremail TEXT,
+                            quoteno TEXT NOT NULL,
+                            createddate TIMESTAMP WITH TIME ZONE NOT NULL,
+                            sentdate TIMESTAMP WITH TIME ZONE,
+                            approveddate TIMESTAMP WITH TIME ZONE,
+                            status TEXT NOT NULL DEFAULT 'Taslak',
+                            saleid INTEGER,
+                            sentquoteid INTEGER,
+                            notes TEXT,
+                            currency TEXT NOT NULL DEFAULT 'TRY'
+                        );";
+                cmd.ExecuteNonQuery();
+                Console.WriteLine("Ensured ProductQuotes table exists.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Could not ensure ProductQuotes: {ex.Message}");
+            }
+
+            // ProductQuoteItems
+            try
+            {
+                var conn = db.Database.GetDbConnection();
+                if (conn.State != System.Data.ConnectionState.Open)
+                    conn.Open();
+                    
+                using var cmd = conn.CreateCommand();
+                    cmd.CommandText = @"
+                        CREATE TABLE IF NOT EXISTS productquoteitems (
+                            id SERIAL PRIMARY KEY,
+                            productquoteid INTEGER NOT NULL REFERENCES productquotes(id) ON DELETE CASCADE,
+                            productid INTEGER REFERENCES products(id) ON DELETE SET NULL,
+                            productname TEXT NOT NULL,
+                            quantity INTEGER NOT NULL,
+                            unitprice NUMERIC NOT NULL,
+                            discountpercent NUMERIC NOT NULL DEFAULT 0
+                        );";
+                cmd.ExecuteNonQuery();
+                Console.WriteLine("Ensured ProductQuoteItems table exists.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Could not ensure ProductQuoteItems: {ex.Message}");
+            }
+
+            // Update SentQuotes with QuoteType and ProductQuoteId
+            try
+            {
+                var conn = db.Database.GetDbConnection();
+                if (conn.State != System.Data.ConnectionState.Open)
+                    conn.Open();
+
+                // Check if quotetype column exists
+                bool hasQuoteType = false;
+                bool hasProductQuoteId = false;
+                
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = "SELECT column_name FROM information_schema.columns WHERE table_name='sentquotes';";
+                    using var rdr = cmd.ExecuteReader();
+                    while (rdr.Read())
+                    {
+                        var name = rdr.GetString(0);
+                        if (name.Equals("quotetype", StringComparison.OrdinalIgnoreCase)) hasQuoteType = true;
+                        if (name.Equals("productquoteid", StringComparison.OrdinalIgnoreCase)) hasProductQuoteId = true;
+                    }
+                }
+
+                if (!hasQuoteType)
+                {
+                    using var alter = conn.CreateCommand();
+                    alter.CommandText = "ALTER TABLE sentquotes ADD COLUMN quotetype TEXT NOT NULL DEFAULT 'Service';";
+                    alter.ExecuteNonQuery();
+                    Console.WriteLine("Added QuoteType column to SentQuotes table.");
+                }
+
+                if (!hasProductQuoteId)
+                {
+                    using var alter2 = conn.CreateCommand();
+                    alter2.CommandText = "ALTER TABLE sentquotes ADD COLUMN productquoteid INTEGER;";
+                    alter2.ExecuteNonQuery();
+                    Console.WriteLine("Added ProductQuoteId column to SentQuotes table.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Could not update SentQuotes columns: {ex.Message}");
+            }
+
             // Roles
             string[] roles = { "admin", "servis", "muhasebe", "user", "satis" };
             foreach (var role in roles)

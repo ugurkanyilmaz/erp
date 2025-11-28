@@ -1,5 +1,5 @@
 import React from 'react';
-import { Package, Wrench, FileText, Users, ShoppingCart, Archive, Settings, BarChart3, TrendingUp } from 'lucide-react';
+import { Package, Wrench, FileText, Users, ShoppingCart, Archive, Settings, BarChart3, TrendingUp, Truck, Wallet, Percent } from 'lucide-react';
 import Header from '../components/Header'
 import { Link } from 'react-router-dom'
 
@@ -7,10 +7,12 @@ export default function ERPDashboard() {
   const modules = [
     { id: 1, title: 'Stok Durumu', icon: Package, color: 'bg-blue-500', count: '1,250' },
     { id: 2, title: 'Servis Takip', icon: Wrench, color: 'bg-violet-500', count: '42' },
-    { id: 3, title: 'Fatura İşlemleri', icon: FileText, color: 'bg-emerald-500', count: '156' },
+    { id: 3, title: 'Satışlar', icon: ShoppingCart, color: 'bg-emerald-500', count: '156' },
     { id: 4, title: 'Müşteri Yönetimi', icon: Users, color: 'bg-orange-500', count: '342' },
     { id: 5, title: 'Satış Demo', icon: ShoppingCart, color: 'bg-pink-500', count: '89' },
-    { id: 6, title: 'Raporlar', icon: BarChart3, color: 'bg-indigo-500', count: '24' },
+    { id: 6, title: 'Siparişler', icon: Truck, color: 'bg-indigo-500', count: '24' },
+    { id: 9, title: 'Gelen Ödemeler', icon: Wallet, color: 'bg-teal-500', count: '-' },
+    { id: 10, title: 'Prim Hesabı', icon: Percent, color: 'bg-rose-500', count: '-' },
     { id: 7, title: 'Arşiv', icon: Archive, color: 'bg-cyan-500', count: '-' },
     { id: 8, title: 'Ayarlar', icon: Settings, color: 'bg-slate-500', count: '-' }
   ];
@@ -102,6 +104,38 @@ export default function ERPDashboard() {
             if (module.title === 'Satış Demo') {
               return (
                 <Link key={module.id} to="/sales-demo" className="block">
+                  {card}
+                </Link>
+              )
+            }
+
+            if (module.title === 'Siparişler') {
+              return (
+                <Link key={module.id} to="/orders" className="block">
+                  {card}
+                </Link>
+              )
+            }
+
+            if (module.title === 'Gelen Ödemeler') {
+              return (
+                <Link key={module.id} to="/incoming-payments" className="block">
+                  {card}
+                </Link>
+              )
+            }
+
+            if (module.title === 'Satışlar') {
+              return (
+                <Link key={module.id} to="/sales" className="block">
+                  {card}
+                </Link>
+              )
+            }
+
+            if (module.title === 'Prim Hesabı') {
+              return (
+                <Link key={module.id} to="/commissions" className="block">
                   {card}
                 </Link>
               )

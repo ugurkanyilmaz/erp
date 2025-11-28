@@ -13,5 +13,9 @@ namespace KetenErp.Core.Service
         public string? CustomerName { get; set; }
         // Optional sender name (Gönderen) provided when sending bulk quotes
         public string? SenderName { get; set; }
+        
+        // Quote type categorization for archive
+        public string QuoteType { get; set; } = "Service"; // "Service" or "Product"
+        public int? ProductQuoteId { get; set; } // If QuoteType is "Product"
     }
 }
