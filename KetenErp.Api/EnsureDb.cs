@@ -361,7 +361,8 @@ namespace KetenErp.Api
                             takendate TIMESTAMP WITH TIME ZONE NOT NULL,
                             returndate TIMESTAMP WITH TIME ZONE,
                             status TEXT NOT NULL,
-                            notes TEXT
+                            notes TEXT,
+                            serialno TEXT
                         );";
                 cmd.ExecuteNonQuery();
                 Console.WriteLine("Ensured SalesDemoRecords table exists.");
@@ -369,6 +370,42 @@ namespace KetenErp.Api
             catch (Exception ex)
             {
                 Console.WriteLine($"Could not ensure SalesDemoRecords: {ex.Message}");
+            }
+
+            // Ensure SalesDemoRecords.SerialNo
+            try
+            {
+                var conn = db.Database.GetDbConnection();
+                if (conn.State != System.Data.ConnectionState.Open)
+                    conn.Open();
+
+                bool hasSerialNo = false;
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = "SELECT column_name FROM information_schema.columns WHERE table_name='salesdemorecords';";
+                    using (var rdr = cmd.ExecuteReader())
+                    {
+                        while (rdr.Read())
+                        {
+                            if (rdr.GetString(0).Equals("serialno", StringComparison.OrdinalIgnoreCase))
+                                hasSerialNo = true;
+                        }
+                    }
+                }
+
+                if (!hasSerialNo)
+                {
+                    using (var alter = conn.CreateCommand())
+                    {
+                        alter.CommandText = "ALTER TABLE salesdemorecords ADD COLUMN serialno TEXT;";
+                        alter.ExecuteNonQuery();
+                        Console.WriteLine("Added SerialNo column to SalesDemoRecords table.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Could not ensure SalesDemoRecords.SerialNo: {ex.Message}");
             }
 
             // RefreshTokens
@@ -467,6 +504,42 @@ namespace KetenErp.Api
             catch (Exception ex)
             {
                 Console.WriteLine($"Could not ensure IncomingPayments: {ex.Message}");
+            }
+
+            // Ensure IncomingPayments.SaleId
+            try
+            {
+                var conn = db.Database.GetDbConnection();
+                if (conn.State != System.Data.ConnectionState.Open)
+                    conn.Open();
+
+                bool hasSaleId = false;
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = "SELECT column_name FROM information_schema.columns WHERE table_name='incomingpayments';";
+                    using (var rdr = cmd.ExecuteReader())
+                    {
+                        while (rdr.Read())
+                        {
+                            if (rdr.GetString(0).Equals("saleid", StringComparison.OrdinalIgnoreCase))
+                                hasSaleId = true;
+                        }
+                    }
+                }
+
+                if (!hasSaleId)
+                {
+                    using (var alter = conn.CreateCommand())
+                    {
+                        alter.CommandText = "ALTER TABLE incomingpayments ADD COLUMN saleid INTEGER;";
+                        alter.ExecuteNonQuery();
+                        Console.WriteLine("Added SaleId column to IncomingPayments table.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Could not ensure IncomingPayments.SaleId: {ex.Message}");
             }
 
             // Sales

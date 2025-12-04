@@ -6,21 +6,33 @@ import productQuoteApi from '../hooks/productQuoteApi';
 
 export default function IncomingPaymentsPage() {
     const [activeTab, setActiveTab] = useState('incoming'); // 'incoming' or 'expected'
+    const [customers, setCustomers] = useState([]);
+    const [sales, setSales] = useState([]);
     const [payments, setPayments] = useState([]);
-    const [expectedPayments, setExpectedPayments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
+    const [newPayment, setNewPayment] = useState({ targetAccount: '', sender: '', amount: '', saleId: null });
     const [searchTerm, setSearchTerm] = useState('');
-    const [newPayment, setNewPayment] = useState({
-        targetAccount: '',
-        sender: '',
-        amount: ''
-    });
+    const [expectedPayments, setExpectedPayments] = useState([]);
 
     useEffect(() => {
         fetchPayments();
         fetchExpectedPayments();
+        fetchCustomersAndSales();
     }, []);
+
+    const fetchCustomersAndSales = async () => {
+        try {
+            const [custData, salesData] = await Promise.all([
+                accountingApi.getCustomers(),
+                accountingApi.getSales()
+            ]);
+            setCustomers(custData || []);
+            setSales(salesData || []);
+        } catch (error) {
+            console.error('Error fetching customers/sales:', error);
+        }
+    };
 
     const fetchPayments = async () => {
         try {
@@ -35,14 +47,33 @@ export default function IncomingPaymentsPage() {
 
     const fetchExpectedPayments = async () => {
         try {
-            const quotes = await productQuoteApi.getProductQuotes();
-            // Filter for approved quotes that have a sale record which is not completed
-            const pending = quotes.filter(q =>
-                q.status === 'Onaylandı' &&
-                q.sale &&
-                !q.sale.isCompleted
-            );
-            setExpectedPayments(pending);
+            const [quotesData, salesData] = await Promise.all([
+                productQuoteApi.getProductQuotes(),
+                accountingApi.getSales()
+            ]);
+
+            const quotes = quotesData || [];
+            const allSales = salesData || [];
+
+            // Filter sales that are not completed (fully paid)
+            const unpaidSales = allSales.filter(s => !s.isCompleted);
+
+            // Map sales to expected payment items
+            // If a sale is linked to a quote, we can enrich it with quote info
+            const expectedItems = unpaidSales.map(sale => {
+                // Find quote linked to this sale
+                const linkedQuote = quotes.find(q => q.sale && q.sale.id === sale.id);
+
+                return {
+                    id: `sale-${sale.id}`, // Unique ID for the list
+                    quoteNo: linkedQuote ? linkedQuote.quoteNo : '-',
+                    customerName: sale.customerName,
+                    sale: sale, // The sale object itself
+                    // We can add other fields if needed
+                };
+            });
+
+            setExpectedPayments(expectedItems);
         } catch (error) {
             console.error('Error fetching expected payments:', error);
         }
@@ -56,7 +87,7 @@ export default function IncomingPaymentsPage() {
                 amount: parseFloat(newPayment.amount)
             });
             setShowModal(false);
-            setNewPayment({ targetAccount: '', sender: '', amount: '' });
+            setNewPayment({ targetAccount: '', sender: '', amount: '', saleId: null });
             fetchPayments();
         } catch (error) {
             console.error('Error creating payment:', error);
@@ -64,13 +95,13 @@ export default function IncomingPaymentsPage() {
     };
 
     const filteredPayments = payments.filter(payment =>
-        payment.sender.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        payment.targetAccount.toLowerCase().includes(searchTerm.toLowerCase())
+        (payment.sender || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (payment.targetAccount || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     const filteredExpected = expectedPayments.filter(item =>
-        item.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.quoteNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.customerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.quoteNo || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (item.sale?.saleNo && item.sale.saleNo.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
@@ -79,6 +110,11 @@ export default function IncomingPaymentsPage() {
         const remaining = curr.sale ? (curr.sale.amount - curr.sale.totalPaidAmount) : 0;
         return acc + remaining;
     }, 0);
+
+    // Filter sales based on selected sender (customer)
+    const availableSales = sales.filter(s =>
+        s.customerName?.toLowerCase().trim() === newPayment.sender?.toLowerCase().trim() && !s.isCompleted
+    );
 
     return (
         <div className="min-h-screen bg-slate-50">
@@ -152,6 +188,7 @@ export default function IncomingPaymentsPage() {
                                     <tr>
                                         <th>Tarih</th>
                                         <th>Gönderen</th>
+                                        <th>İlgili Satış</th>
                                         <th>Hesap</th>
                                         <th className="text-right">Tutar</th>
                                     </tr>
@@ -166,6 +203,9 @@ export default function IncomingPaymentsPage() {
                                                 </div>
                                             </td>
                                             <td className="font-medium">{payment.sender}</td>
+                                            <td className="text-xs font-mono text-slate-500">
+                                                {payment.saleId ? (sales.find(s => s.id === payment.saleId)?.saleNo || `Satış #${payment.saleId}`) : '-'}
+                                            </td>
                                             <td>
                                                 <div className="badge badge-ghost gap-1">
                                                     <Wallet size={12} />
@@ -179,7 +219,7 @@ export default function IncomingPaymentsPage() {
                                     ))}
                                     {filteredPayments.length === 0 && (
                                         <tr>
-                                            <td colSpan="4" className="text-center py-8 text-slate-500">
+                                            <td colSpan="5" className="text-center py-8 text-slate-500">
                                                 {searchTerm ? 'Arama kriterlerine uygun ödeme bulunamadı.' : 'Henüz ödeme kaydı yok.'}
                                             </td>
                                         </tr>
@@ -243,6 +283,7 @@ export default function IncomingPaymentsPage() {
                         )}
                     </div>
                 </div>
+
             </main>
 
             {/* New Payment Modal */}
@@ -269,16 +310,56 @@ export default function IncomingPaymentsPage() {
 
                             <div className="form-control w-full mb-4">
                                 <label className="label">
-                                    <span className="label-text font-semibold text-slate-700">Gönderen</span>
+                                    <span className="label-text font-semibold text-slate-700">Gönderen (Müşteri)</span>
                                 </label>
                                 <input
-                                    type="text"
+                                    list="customer-list"
                                     className="input input-bordered w-full rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400"
                                     required
+                                    placeholder="Müşteri ara..."
                                     value={newPayment.sender}
-                                    onChange={e => setNewPayment({ ...newPayment, sender: e.target.value })}
+                                    onChange={e => {
+                                        setNewPayment({ ...newPayment, sender: e.target.value, saleId: null }); // Reset sale when customer changes
+                                    }}
                                 />
+                                <datalist id="customer-list">
+                                    {customers.map(c => (
+                                        <option key={c.id} value={c.name} />
+                                    ))}
+                                </datalist>
                             </div>
+
+
+                            {newPayment.sender && (
+                                <div className="form-control w-full mb-4">
+                                    <label className="label">
+                                        <span className="label-text font-semibold text-slate-700">İlgili Satış (Opsiyonel)</span>
+                                    </label>
+                                    <select
+                                        className="select select-bordered w-full rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                        value={newPayment.saleId || ''}
+                                        onChange={e => setNewPayment({ ...newPayment, saleId: e.target.value ? parseInt(e.target.value) : null })}
+                                    >
+                                        <option value="">Seçiniz (Genel Ödeme)</option>
+                                        {availableSales.map(s => (
+                                            <option key={s.id} value={s.id}>
+                                                {s.saleNo} - ₺{(s.amount || 0).toLocaleString('tr-TR')} (Kalan: ₺{((s.amount || 0) - (s.totalPaidAmount || 0)).toLocaleString('tr-TR')})
+                                            </option>
+                                        ))}
+                                    </select>
+                                    {availableSales.length === 0 && (
+                                        <label className="label">
+                                            <span className="label-text-alt text-amber-600">Bu müşteriye ait ödenmemiş satış bulunamadı</span>
+                                        </label>
+                                    )}
+                                    {availableSales.length > 0 && (
+                                        <label className="label">
+                                            <span className="label-text-alt text-slate-500">Bir satış seçerek komisyon hesaplamasını etkinleştirin</span>
+                                        </label>
+                                    )}
+                                </div>
+                            )}
+
 
                             <div className="form-control w-full mb-4">
                                 <label className="label">

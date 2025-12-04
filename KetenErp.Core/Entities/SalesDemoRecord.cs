@@ -9,6 +9,7 @@ namespace KetenErp.Core.Entities
         public Product? Product { get; set; }
         public string SalesPersonId { get; set; } = string.Empty;
         public string TargetCompany { get; set; } = string.Empty;
+        public string? SerialNo { get; set; }
         public DateTime TakenDate { get; set; }
         public DateTime? ReturnDate { get; set; }
         public string Status { get; set; } = "Active"; // Active, Returned

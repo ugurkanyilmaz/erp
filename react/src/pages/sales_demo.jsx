@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { ShoppingCart, Search, Plus, RotateCcw, History, User, Building, Package as PackageIcon, Calendar } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { createWorker } from 'tesseract.js';
+import { ShoppingCart, Search, Plus, RotateCcw, History, User, Building, Package as PackageIcon, Calendar, Camera } from 'lucide-react';
 import Header from '../components/Header';
-import salesDemoApi from '../hooks/salesDemoApi';
+import Notification from '../components/Notification';
 import stockApi from '../hooks/stockApi';
 import customerApi from '../hooks/customerApi';
-import Notification from '../components/Notification';
+import salesDemoApi from '../hooks/salesDemoApi';
 
 export default function SalesDemo() {
     const [activeTab, setActiveTab] = useState('active'); // active, history, new
@@ -14,10 +15,15 @@ export default function SalesDemo() {
     const [historyRecords, setHistoryRecords] = useState([]);
     const [loading, setLoading] = useState(false);
     const [notification, setNotification] = useState({ type: '', message: '' });
+    const [showScanner, setShowScanner] = useState(false);
+    const [isScanning, setIsScanning] = useState(false);
+    const [stream, setStream] = useState(null);
 
     // Form state
     const [selectedProduct, setSelectedProduct] = useState('');
     const [targetCompany, setTargetCompany] = useState('');
+    const [serialNo, setSerialNo] = useState('');
+    const [takenDate, setTakenDate] = useState(new Date().toISOString().split('T')[0]);
     const [notes, setNotes] = useState('');
     const [salesPersonId, setSalesPersonId] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
@@ -50,6 +56,109 @@ export default function SalesDemo() {
             loadHistoryRecords();
         }
     }, [activeTab]);
+
+    useEffect(() => {
+        if (showScanner) {
+            startCamera();
+        } else {
+            stopCamera();
+        }
+        return () => stopCamera();
+    }, [showScanner]);
+
+    const startCamera = async () => {
+        try {
+            const mediaStream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'environment' }
+            });
+            setStream(mediaStream);
+            const video = document.getElementById('camera-feed');
+            if (video) {
+                video.srcObject = mediaStream;
+            }
+        } catch (err) {
+            console.error("Camera error:", err);
+            setNotification({ type: 'error', message: 'Kamera başlatılamadı' });
+            setShowScanner(false);
+        }
+    };
+
+    const stopCamera = () => {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+            setStream(null);
+        }
+    };
+
+    const stopScanner = () => {
+        stopCamera();
+        setShowScanner(false);
+        setIsScanning(false);
+    };
+
+    const captureAndRead = async () => {
+        const video = document.getElementById('camera-feed');
+        if (!video) return;
+
+        setIsScanning(true);
+        try {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            // Set canvas size to video size
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            // Draw full video frame
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Calculate crop area (center of the image, matching the visual overlay)
+            // Overlay is w-64 (256px) h-16 (64px) centered
+            // We need to calculate this relative to the video element's displayed size vs actual size
+            // For simplicity, let's assume we crop the center 50% width and 20% height
+
+            const cropWidth = Math.min(canvas.width * 0.8, 600); // Max 600px width
+            const cropHeight = cropWidth * 0.25; // 4:1 aspect ratio like the box
+            const startX = (canvas.width - cropWidth) / 2;
+            const startY = (canvas.height - cropHeight) / 2;
+
+            // Create a new canvas for the cropped image
+            const croppedCanvas = document.createElement('canvas');
+            croppedCanvas.width = cropWidth;
+            croppedCanvas.height = cropHeight;
+            const croppedCtx = croppedCanvas.getContext('2d');
+
+            // Draw the cropped area
+            croppedCtx.drawImage(
+                canvas,
+                startX, startY, cropWidth, cropHeight,
+                0, 0, cropWidth, cropHeight
+            );
+
+            // Convert to image data URL
+            const imageUrl = croppedCanvas.toDataURL('image/png');
+
+            // Perform OCR
+            const worker = await createWorker('eng'); // 'eng' is usually enough for alphanumeric
+            const ret = await worker.recognize(imageUrl);
+            await worker.terminate();
+
+            const text = ret.data.text.trim().replace(/\s+/g, ''); // Remove whitespace
+            if (text) {
+                setSerialNo(text);
+                setNotification({ type: 'success', message: `Okundu: ${text}` });
+                stopScanner();
+            } else {
+                setNotification({ type: 'warning', message: 'Metin okunamadı, tekrar deneyin' });
+            }
+
+        } catch (err) {
+            console.error("OCR Error:", err);
+            setNotification({ type: 'error', message: 'Okuma hatası' });
+        } finally {
+            setIsScanning(false);
+        }
+    };
 
     const loadProducts = async () => {
         try {
@@ -105,6 +214,8 @@ export default function SalesDemo() {
                 productId: parseInt(selectedProduct),
                 targetCompany,
                 notes,
+                serialNo,
+                takenDate: takenDate ? new Date(takenDate) : undefined,
                 salesPersonId: salesPersonId || undefined // Backend handles default if empty for sales users
             });
             setNotification({ type: 'success', message: 'Ürün çıkışı yapıldı' });
@@ -112,6 +223,8 @@ export default function SalesDemo() {
             setSelectedProduct('');
             setTargetCompany('');
             setCustomerSearchTerm('');
+            setSerialNo('');
+            setTakenDate(new Date().toISOString().split('T')[0]);
             setNotes('');
             setActiveTab('active');
             loadActiveRecords();
@@ -341,6 +454,45 @@ export default function SalesDemo() {
                                     </label>
                                 </div>
 
+                                {/* Serial No & Date Row */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {/* Serial No */}
+                                    <div className="form-control">
+                                        <label className="label font-medium text-slate-700">Seri No</label>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                className="input input-bordered w-full"
+                                                placeholder="Cihaz seri numarası..."
+                                                value={serialNo}
+                                                onChange={(e) => setSerialNo(e.target.value)}
+                                            />
+                                            <button
+                                                type="button"
+                                                className="btn btn-square btn-outline"
+                                                onClick={() => setShowScanner(true)}
+                                            >
+                                                📷
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Date Picker */}
+                                    <div className="form-control">
+                                        <label className="label font-medium text-slate-700">Tarih</label>
+                                        <div className="relative">
+                                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                            <input
+                                                type="date"
+                                                className="input input-bordered w-full pl-10"
+                                                value={takenDate}
+                                                onChange={(e) => setTakenDate(e.target.value)}
+                                                required
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
                                 {/* Notes */}
                                 <div className="form-control">
                                     <label className="label font-medium text-slate-700">Notlar</label>
@@ -425,6 +577,72 @@ export default function SalesDemo() {
                 message={notification.message}
                 onClose={() => setNotification({ type: '', message: '' })}
             />
+
+            {/* OCR Scanner Modal */}
+            {showScanner && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90">
+                    <div className="w-full max-w-lg mx-4 bg-black rounded-2xl shadow-2xl overflow-hidden relative flex flex-col">
+                        <div className="p-4 flex justify-between items-center bg-slate-900 text-white z-10">
+                            <h3 className="font-bold text-lg">Seri No Tara</h3>
+                            <button
+                                onClick={() => stopScanner()}
+                                className="btn btn-circle btn-sm btn-ghost text-white"
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        <div className="relative w-full bg-black aspect-[4/3] overflow-hidden">
+                            <video
+                                id="camera-feed"
+                                autoPlay
+                                playsInline
+                                muted
+                                className="w-full h-full object-cover"
+                            ></video>
+
+                            {/* Scan Region Overlay */}
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <div className="w-64 h-16 border-2 border-emerald-500 bg-transparent shadow-[0_0_0_9999px_rgba(0,0,0,0.7)] relative">
+                                    <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-emerald-500 -mt-1 -ml-1"></div>
+                                    <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-emerald-500 -mt-1 -mr-1"></div>
+                                    <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-emerald-500 -mb-1 -ml-1"></div>
+                                    <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-emerald-500 -mb-1 -mr-1"></div>
+                                </div>
+                            </div>
+
+                            {/* Scanning Indicator */}
+                            {isScanning && (
+                                <div className="absolute bottom-4 left-0 right-0 text-center">
+                                    <span className="inline-block px-3 py-1 bg-black/60 text-white text-sm rounded-full animate-pulse">
+                                        Taranıyor...
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="p-4 bg-slate-900 flex justify-center gap-4">
+                            <button
+                                onClick={captureAndRead}
+                                disabled={isScanning}
+                                className="btn btn-emerald w-full max-w-xs gap-2"
+                            >
+                                {isScanning ? (
+                                    <>
+                                        <span className="loading loading-spinner loading-sm"></span>
+                                        Okunuyor
+                                    </>
+                                ) : (
+                                    <>
+                                        <Camera size={20} />
+                                        Tara
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

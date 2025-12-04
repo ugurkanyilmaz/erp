@@ -59,9 +59,10 @@ namespace KetenErp.Api.Controllers
                 ProductId = dto.ProductId,
                 SalesPersonId = salesPersonId,
                 TargetCompany = dto.TargetCompany,
-                TakenDate = DateTime.UtcNow,
+                TakenDate = dto.TakenDate != default ? dto.TakenDate.ToUniversalTime() : DateTime.UtcNow,
                 Status = "Active",
-                Notes = dto.Notes
+                Notes = dto.Notes,
+                SerialNo = dto.SerialNo
             };
 
             _db.SalesDemoRecords.Add(record);
@@ -102,6 +103,8 @@ namespace KetenErp.Api.Controllers
             public string? SalesPersonId { get; set; }
             public string TargetCompany { get; set; } = string.Empty;
             public string? Notes { get; set; }
+            public string? SerialNo { get; set; }
+            public DateTime TakenDate { get; set; }
         }
     }
 }

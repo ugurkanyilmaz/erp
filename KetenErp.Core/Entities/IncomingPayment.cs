@@ -9,5 +9,7 @@ namespace KetenErp.Core.Entities
         public string Sender { get; set; } = string.Empty;
         public decimal Amount { get; set; }
         public DateTime Date { get; set; }
+        public int? SaleId { get; set; }
+        public Sale? Sale { get; set; }
     }
 }

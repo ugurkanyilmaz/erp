@@ -33,16 +33,38 @@ namespace KetenErp.Api.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateSale([FromBody] Sale sale)
         {
-            if (sale == null) return BadRequest();
+            if (sale == null) 
+                return BadRequest(new { error = "Sale data is required" });
 
-            sale.Date = DateTime.UtcNow;
-            sale.IsCompleted = false;
-            sale.TotalPaidAmount = 0;
+            // Validate required fields
+            if (string.IsNullOrWhiteSpace(sale.CustomerName))
+                return BadRequest(new { error = "Customer name is required" });
 
-            _context.Sales.Add(sale);
-            await _context.SaveChangesAsync();
+            if (string.IsNullOrWhiteSpace(sale.SaleNo))
+                return BadRequest(new { error = "Sale number is required" });
 
-            return Ok(sale);
+            if (string.IsNullOrWhiteSpace(sale.SalesPersonId))
+                return BadRequest(new { error = "Sales person is required" });
+
+            if (sale.Amount <= 0)
+                return BadRequest(new { error = "Amount must be greater than 0" });
+
+            try
+            {
+                sale.Date = DateTime.UtcNow;
+                sale.IsCompleted = false;
+                sale.TotalPaidAmount = 0;
+
+                _context.Sales.Add(sale);
+                await _context.SaveChangesAsync();
+
+                return Ok(sale);
+            }
+            catch (Exception ex)
+            {
+                // Log the error (you can inject ILogger<SalesController> for proper logging)
+                return StatusCode(500, new { error = "Failed to create sale", details = ex.Message });
+            }
         }
 
         [HttpPost("{id}/payment")]

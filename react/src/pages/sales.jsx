@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingCart, Plus, CreditCard, User, Calendar, Search, Check, Package } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { ShoppingCart, Plus, CreditCard, User, Calendar, Search, Check } from 'lucide-react';
 import Header from '../components/Header';
 import accountingApi from '../hooks/accountingApi';
 
@@ -68,13 +67,8 @@ export default function SalesPage() {
         if (customerName) {
             try {
                 const res = await accountingApi.getNextSaleNumber(customerName);
-                // Format: "CustomerName S{NextNumber}" or just the number if preferred. 
-                // User asked for "1 2 3 diye artsın o firma özelinde". 
-                // Let's format it as "{CustomerName} S{NextNumber}" for clarity, or just the number.
-                // Based on user request "satış no otomatik belirlensin 1 2 3 diye artısn o firma özelinde", 
-                // it seems they want a simple counter. But usually sales numbers are unique.
-                // Let's pre-fill with just the number, but allow editing.
-                setNewSale(prev => ({ ...prev, saleNo: res.nextNumber }));
+                // Ensure the sale number is always stored as a string
+                setNewSale(prev => ({ ...prev, saleNo: String(res.nextNumber) }));
             } catch (error) {
                 console.error('Error fetching next sale number:', error);
             }
@@ -86,14 +80,17 @@ export default function SalesPage() {
         try {
             await accountingApi.createSale({
                 ...newSale,
-                amount: parseFloat(newSale.amount),
-                dueDate: newSale.dueDate ? new Date(newSale.dueDate) : null
+                saleNo: String(newSale.saleNo), // Ensure saleNo is a string
+                amount: parseFloat(newSale.amount) || 0,
+                dueDate: newSale.dueDate ? newSale.dueDate : null
             });
             setShowModal(false);
             setNewSale({ customerName: '', saleNo: '', amount: '', salesPersonId: '', dueDate: '' });
             fetchSales();
         } catch (error) {
             console.error('Error creating sale:', error);
+            const errorMsg = error.response?.data?.error || error.response?.data?.errors || 'Satış oluşturulurken bir hata oluştu';
+            alert(typeof errorMsg === 'object' ? JSON.stringify(errorMsg) : errorMsg);
         }
     };
 
@@ -144,20 +141,12 @@ export default function SalesPage() {
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
-                    <div className="flex gap-3">
-                        <Link
-                            to="/product-quotes"
-                            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold shadow-md hover:opacity-90 transition flex items-center gap-2"
-                        >
-                            <Package size={20} /> Ürün Teklifleri
-                        </Link>
-                        <button
-                            onClick={() => setShowModal(true)}
-                            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-semibold shadow-md hover:opacity-90 transition flex items-center gap-2"
-                        >
-                            <Plus size={20} /> Yeni Satış
-                        </button>
-                    </div>
+                    <button
+                        onClick={() => setShowModal(true)}
+                        className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-semibold shadow-md hover:opacity-90 transition flex items-center gap-2"
+                    >
+                        <Plus size={20} /> Yeni Satış
+                    </button>
                 </div>
 
                 <div className="card bg-base-100 shadow-xl">
