@@ -101,7 +101,7 @@ export default function OrdersPage() {
 
         try {
             const payload = {
-                customerName: newOrder.customerName,
+                supplier: newOrder.customerName, // Backend expects 'supplier'
                 notes: newOrder.notes,
                 items: newOrder.items.map(item => ({
                     productId: item.productId,
@@ -148,10 +148,11 @@ export default function OrdersPage() {
 
     const getStatusBadge = (status) => {
         switch (status) {
-            case 'Beklemede': return 'bg-amber-100 text-amber-700 border-amber-300';
+            case 'Sipariş Verildi': return 'bg-amber-100 text-amber-700 border-amber-300';
             case 'Hazırlanıyor': return 'bg-blue-100 text-blue-700 border-blue-300';
-            case 'Kargoda': return 'bg-purple-100 text-purple-700 border-purple-300';
-            case 'Tamamlandı': return 'bg-emerald-100 text-emerald-700 border-emerald-300';
+            case 'Yolda': return 'bg-purple-100 text-purple-700 border-purple-300';
+            case 'Gümrükte': return 'bg-indigo-100 text-indigo-700 border-indigo-300';
+            case 'Ulaştı': return 'bg-emerald-100 text-emerald-700 border-emerald-300';
             case 'İptal': return 'bg-red-100 text-red-700 border-red-300';
             default: return 'bg-slate-100 text-slate-700 border-slate-300';
         }
@@ -159,10 +160,11 @@ export default function OrdersPage() {
 
     const getStatusIcon = (status) => {
         switch (status) {
-            case 'Beklemede': return <Clock size={16} />;
+            case 'Sipariş Verildi': return <Clock size={16} />;
             case 'Hazırlanıyor': return <Package size={16} />;
-            case 'Kargoda': return <TrendingUp size={16} />;
-            case 'Tamamlandı': return <CheckCircle size={16} />;
+            case 'Yolda': return <TrendingUp size={16} />;
+            case 'Gümrükte': return <Package size={16} />;
+            case 'Ulaştı': return <CheckCircle size={16} />;
             case 'İptal': return <AlertCircle size={16} />;
             default: return null;
         }
@@ -173,11 +175,11 @@ export default function OrdersPage() {
         (o.orderNo || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const statusOptions = ['Beklemede', 'Hazırlanıyor', 'Kargoda', 'Tamamlandı', 'İptal'];
+    const statusOptions = ['Sipariş Verildi', 'Hazırlanıyor', 'Yolda', 'Gümrükte', 'Ulaştı', 'İptal'];
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">
-            <Header title="Siparişler" subtitle="Sipariş oluştur ve takip et" IconComponent={Package} showNew={false} showBack={true} />
+            <Header title="Tedarik" subtitle="Tedarik siparişleri oluştur ve takip et" IconComponent={Package} showNew={false} showBack={true} />
 
             <main className="p-6">
                 {/* Stats Cards */}
@@ -185,8 +187,8 @@ export default function OrdersPage() {
                     <div className="bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl p-6 text-white shadow-xl transform hover:scale-105 transition-all duration-300">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-amber-100 text-sm font-medium">Beklemede</p>
-                                <h3 className="text-4xl font-bold mt-2">{orders.filter(o => o.status === 'Beklemede').length}</h3>
+                                <p className="text-amber-100 text-sm font-medium">Sipariş Verildi</p>
+                                <h3 className="text-4xl font-bold mt-2">{orders.filter(o => o.status === 'Sipariş Verildi').length}</h3>
                             </div>
                             <Clock size={48} className="opacity-20" />
                         </div>
@@ -205,8 +207,8 @@ export default function OrdersPage() {
                     <div className="bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl p-6 text-white shadow-xl transform hover:scale-105 transition-all duration-300">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-purple-100 text-sm font-medium">Kargoda</p>
-                                <h3 className="text-4xl font-bold mt-2">{orders.filter(o => o.status === 'Kargoda').length}</h3>
+                                <p className="text-purple-100 text-sm font-medium">Yolda</p>
+                                <h3 className="text-4xl font-bold mt-2">{orders.filter(o => o.status === 'Yolda').length}</h3>
                             </div>
                             <TrendingUp size={48} className="opacity-20" />
                         </div>
@@ -215,8 +217,8 @@ export default function OrdersPage() {
                     <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-6 text-white shadow-xl transform hover:scale-105 transition-all duration-300">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-emerald-100 text-sm font-medium">Tamamlandı</p>
-                                <h3 className="text-4xl font-bold mt-2">{orders.filter(o => o.status === 'Tamamlandı').length}</h3>
+                                <p className="text-emerald-100 text-sm font-medium">Ulaştı</p>
+                                <h3 className="text-4xl font-bold mt-2">{orders.filter(o => o.status === 'Ulaştı').length}</h3>
                             </div>
                             <CheckCircle size={48} className="opacity-20" />
                         </div>
@@ -230,7 +232,7 @@ export default function OrdersPage() {
                             <div className="flex items-center justify-between mb-6">
                                 <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent flex items-center gap-2">
                                     <Sparkles size={24} className="text-purple-500" />
-                                    Siparişler
+                                    Tedarik Siparişleri
                                 </h2>
                                 <button
                                     onClick={() => setShowNewOrderForm(true)}
@@ -299,7 +301,7 @@ export default function OrdersPage() {
                         {showNewOrderForm ? (
                             <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-2xl p-8 border border-white/20">
                                 <div className="flex justify-between items-center mb-8">
-                                    <h2 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">Yeni Sipariş</h2>
+                                    <h2 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">Yeni Tedarik Siparişi</h2>
                                     <button onClick={() => setShowNewOrderForm(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
                                         <X size={24} />
                                     </button>
@@ -487,7 +489,7 @@ export default function OrdersPage() {
                         ) : (
                             <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-2xl p-16 text-center border border-white/20">
                                 <Package size={80} className="mx-auto text-slate-300 mb-6" />
-                                <p className="text-slate-500 text-xl font-semibold">Bir sipariş seçin veya yeni sipariş oluşturun</p>
+                                <p className="text-slate-500 text-xl font-semibold">Bir sipariş seçin veya yeni tedarik siparişi oluşturun</p>
                             </div>
                         )}
                     </div>
