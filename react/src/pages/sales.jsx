@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingCart, Plus, CreditCard, User, Calendar, Search, Check } from 'lucide-react';
+import { ShoppingCart, Plus, CreditCard, User, Calendar, Search, Check, FileText, X } from 'lucide-react';
 import Header from '../components/Header';
 import accountingApi from '../hooks/accountingApi';
+import ProductQuotesPage from './product_quotes';
 
 export default function SalesPage() {
+    const [activeTab, setActiveTab] = useState('sales'); // 'sales' or 'quotes'
     const [sales, setSales] = useState([]);
     const [users, setUsers] = useState([]);
     const [customers, setCustomers] = useState([]);
@@ -94,284 +96,269 @@ export default function SalesPage() {
         }
     };
 
-    const handleAddPayment = async (e) => {
-        e.preventDefault();
-        try {
-            await accountingApi.addSalePayment(selectedSaleId, parseFloat(paymentAmount));
-            setShowPaymentModal(false);
-            setPaymentAmount('');
-            setSelectedSaleId(null);
-            fetchSales();
-        } catch (error) {
-            console.error('Error adding payment:', error);
-        }
-    };
-
-    const openPaymentModal = (sale) => {
-        setSelectedSaleId(sale.id);
-        setShowPaymentModal(true);
-    };
-
-    const setDueDate = (days) => {
-        const date = new Date();
-        date.setDate(date.getDate() + days);
-        setNewSale(prev => ({ ...prev, dueDate: date.toISOString().split('T')[0] }));
-    };
-
-    const filteredSales = sales.filter(sale =>
-        sale.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        sale.saleNo.toLowerCase().includes(searchTerm.toLowerCase())
+    const filteredSales = sales.filter(s =>
+        s.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        s.saleNo?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    // Tab buttons component
+    const TabButtons = () => (
+        <div className="flex gap-2 mb-6">
+            <button
+                onClick={() => setActiveTab('sales')}
+                className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center gap-2 ${activeTab === 'sales'
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg scale-105'
+                    : 'bg-white text-slate-600 hover:bg-slate-50 border-2 border-slate-200'
+                    }`}
+            >
+                <ShoppingCart size={20} />
+                Satışlar
+            </button>
+            <button
+                onClick={() => setActiveTab('quotes')}
+                className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center gap-2 ${activeTab === 'quotes'
+                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg scale-105'
+                    : 'bg-white text-slate-600 hover:bg-slate-50 border-2 border-slate-200'
+                    }`}
+            >
+                <FileText size={20} />
+                Ürün Teklifleri
+            </button>
+        </div>
+    );
+
+    // If quotes tab is active, render ProductQuotesPage component
+    if (activeTab === 'quotes') {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+                <Header title="Satışlar" subtitle="Satış yönetimi ve ürün teklifleri" IconComponent={ShoppingCart} showNew={false} showBack={true} />
+                <main className="p-6">
+                    <TabButtons />
+                    <ProductQuotesPage />
+                </main>
+            </div>
+        );
+    }
+
+    // Sales tab content
     return (
-        <div className="min-h-screen bg-slate-50">
-            <Header title="Satışlar" subtitle="Satış ve tahsilat takibi" IconComponent={ShoppingCart} showNew={false} showBack={true} />
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+            <Header title="Satışlar" subtitle="Satış yönetimi ve ürün teklifleri" IconComponent={ShoppingCart} showNew={false} showBack={true} />
 
             <main className="p-6">
-                <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-                    <div className="relative w-full md:w-64">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <Search size={18} className="text-slate-400" />
+                <TabButtons />
+
+                {/* Stats Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div className="card bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-xl">
+                        <div className="card-body">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-emerald-100 text-sm">Toplam Satış</p>
+                                    <p className="text-3xl font-bold mt-1">{sales.length}</p>
+                                </div>
+                                <ShoppingCart size={40} className="opacity-30" />
+                            </div>
                         </div>
+                    </div>
+
+                    <div className="card bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-xl">
+                        <div className="card-body">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-blue-100 text-sm">Tamamlanan</p>
+                                    <p className="text-3xl font-bold mt-1">{sales.filter(s => s.isCompleted).length}</p>
+                                </div>
+                                <Check size={40} className="opacity-30" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="card bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-xl">
+                        <div className="card-body">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-amber-100 text-sm">Bekleyen</p>
+                                    <p className="text-3xl font-bold mt-1">{sales.filter(s => !s.isCompleted).length}</p>
+                                </div>
+                                <Calendar size={40} className="opacity-30" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Action Bar */}
+                <div className="flex items-center justify-between mb-6">
+                    <div className="relative flex-1 max-w-md">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={20} />
                         <input
                             type="text"
-                            placeholder="Müşteri veya satış no ara..."
-                            className="input input-bordered pl-10 w-full"
+                            placeholder="Ara..."
+                            className="input input-bordered w-full pl-10"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
                     <button
                         onClick={() => setShowModal(true)}
-                        className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-semibold shadow-md hover:opacity-90 transition flex items-center gap-2"
+                        className="btn btn-primary gap-2"
                     >
-                        <Plus size={20} /> Yeni Satış
+                        <Plus size={20} />
+                        Yeni Satış
                     </button>
                 </div>
 
-                <div className="card bg-base-100 shadow-xl">
-                    <div className="overflow-x-auto">
-                        <table className="table w-full">
-                            <thead>
-                                <tr>
-                                    <th>Satış No</th>
-                                    <th>Müşteri</th>
-                                    <th>Tarih</th>
-                                    <th>Vade</th>
-                                    <th>Tutar</th>
-                                    <th>Tahsil Edilen</th>
-                                    <th>Kalan</th>
-                                    <th>Satış Temsilcisi</th>
-                                    <th>Durum</th>
-                                    <th>İşlemler</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredSales.map((sale) => {
-                                    const remaining = sale.amount - sale.totalPaidAmount;
-                                    return (
-                                        <tr key={sale.id} className="hover">
-                                            <td className="font-mono text-xs font-bold">{sale.saleNo}</td>
-                                            <td className="font-bold">{sale.customerName}</td>
-                                            <td>{new Date(sale.date).toLocaleDateString('tr-TR')}</td>
-                                            <td>
-                                                {sale.dueDate ? (
-                                                    <div className="flex items-center gap-1 text-xs">
-                                                        <Calendar size={12} />
-                                                        {new Date(sale.dueDate).toLocaleDateString('tr-TR')}
-                                                    </div>
-                                                ) : '-'}
-                                            </td>
-                                            <td>₺{sale.amount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</td>
-                                            <td className="text-success">₺{sale.totalPaidAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</td>
-                                            <td className="text-error font-bold">₺{remaining.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</td>
-                                            <td>
-                                                <div className="flex items-center gap-2 text-sm">
-                                                    <User size={14} className="text-slate-400" />
-                                                    {users.find(u => u.id === sale.salesPersonId)?.name || sale.salesPersonId}
-                                                </div>
-                                            </td>
+                {/* Sales Table */}
+                <div className="card bg-white shadow-xl">
+                    <div className="card-body">
+                        <div className="overflow-x-auto">
+                            <table className="table table-zebra w-full">
+                                <thead>
+                                    <tr>
+                                        <th>Satış No</th>
+                                        <th>Müşteri</th>
+                                        <th>Tutar</th>
+                                        <th>Satış Personeli</th>
+                                        <th>Vade Tarihi</th>
+                                        <th>Durum</th>
+                                        <th>İşlemler</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredSales.map(sale => (
+                                        <tr key={sale.id}>
+                                            <td className="font-semibold">{sale.saleNo}</td>
+                                            <td>{sale.customerName}</td>
+                                            <td>₺{sale.amount?.toLocaleString('tr-TR')}</td>
+                                            <td>{sale.salesPersonId}</td>
+                                            <td>{sale.dueDate ? new Date(sale.dueDate).toLocaleDateString('tr-TR') : '-'}</td>
                                             <td>
                                                 {sale.isCompleted ? (
-                                                    <div className="badge badge-success gap-1"><Check size={12} /> Tamamlandı</div>
+                                                    <span className="badge badge-success gap-2">
+                                                        <Check size={14} />
+                                                        Tamamlandı
+                                                    </span>
                                                 ) : (
-                                                    <div className="badge badge-warning">Ödeme Bekliyor</div>
+                                                    <span className="badge badge-warning">Bekliyor</span>
                                                 )}
                                             </td>
                                             <td>
-                                                {!sale.isCompleted && (
-                                                    <button
-                                                        className="btn btn-xs btn-outline btn-success"
-                                                        onClick={() => openPaymentModal(sale)}
-                                                    >
-                                                        Ödeme Ekle
-                                                    </button>
-                                                )}
+                                                {/* Actions removed as per request */}
                                             </td>
                                         </tr>
-                                    );
-                                })}
-                                {filteredSales.length === 0 && (
-                                    <tr>
-                                        <td colSpan="10" className="text-center py-8 text-slate-500">
-                                            {searchTerm ? 'Arama kriterlerine uygun satış bulunamadı.' : 'Kayıtlı satış bulunamadı.'}
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
-            </main>
 
-            {/* New Sale Modal */}
-            {showModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-                    <div className="w-full max-w-2xl mx-4 bg-white rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto">
-                        <h3 className="font-bold text-2xl mb-6 text-slate-800">Yeni Satış Oluştur</h3>
-                        <form onSubmit={handleCreateSale}>
-                            <div className="form-control w-full mb-4">
-                                <label className="label">
-                                    <span className="label-text font-semibold text-slate-700">Müşteri Seçimi</span>
-                                </label>
-                                <select
-                                    className="select select-bordered w-full rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400"
-                                    required
-                                    value={newSale.customerName}
-                                    onChange={handleCustomerChange}
-                                >
-                                    <option value="">Müşteri Seçiniz</option>
-                                    {customers.map(c => (
-                                        <option key={c.id} value={c.name}>{c.name}</option>
-                                    ))}
-                                </select>
+                {/* New Sale Modal */}
+                {showModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl p-8 mx-4 border-2 border-white/20">
+                            <div className="flex justify-between items-center mb-8">
+                                <h3 className="text-3xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">Yeni Satış</h3>
+                                <button onClick={() => setShowModal(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
+                                    <X size={24} />
+                                </button>
                             </div>
 
-                            <div className="form-control w-full mb-4">
-                                <label className="label">
-                                    <span className="label-text font-semibold text-slate-700">Satış No (Otomatik)</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    className="input input-bordered w-full rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400"
-                                    placeholder="Örn: 1"
-                                    required
-                                    value={newSale.saleNo}
-                                    onChange={e => setNewSale({ ...newSale, saleNo: e.target.value })}
-                                />
-                                <label className="label">
-                                    <span className="label-text-alt text-slate-500">Seçilen müşteri için sıradaki numara otomatik önerilir.</span>
-                                </label>
-                            </div>
+                            <form onSubmit={handleCreateSale}>
+                                <div className="grid grid-cols-2 gap-6">
+                                    <div className="form-control col-span-2">
+                                        <label className="label">
+                                            <span className="label-text font-bold text-slate-700">Müşteri</span>
+                                        </label>
+                                        <input
+                                            list="customers"
+                                            className="input input-bordered rounded-xl border-2 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100 transition-all"
+                                            required
+                                            value={newSale.customerName}
+                                            onChange={handleCustomerChange}
+                                            placeholder="Müşteri ara veya yaz..."
+                                        />
+                                        <datalist id="customers">
+                                            {customers.map(c => (
+                                                <option key={c.id} value={c.name} />
+                                            ))}
+                                        </datalist>
+                                    </div>
 
-                            <div className="form-control w-full mb-4">
-                                <label className="label">
-                                    <span className="label-text font-semibold text-slate-700">Satış Tutar (TL)</span>
-                                </label>
-                                <input
-                                    type="number"
-                                    step="0.01"
-                                    className="input input-bordered w-full rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400"
-                                    required
-                                    value={newSale.amount}
-                                    onChange={e => setNewSale({ ...newSale, amount: e.target.value })}
-                                />
-                            </div>
+                                    <div className="form-control">
+                                        <label className="label">
+                                            <span className="label-text font-bold text-slate-700">Satış No</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            className="input input-bordered rounded-xl border-2 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100 transition-all"
+                                            required
+                                            value={newSale.saleNo}
+                                            onChange={(e) => setNewSale({ ...newSale, saleNo: e.target.value })}
+                                            placeholder="Otomatik oluşturulur"
+                                        />
+                                    </div>
 
-                            <div className="form-control w-full mb-4">
-                                <label className="label">
-                                    <span className="label-text font-semibold text-slate-700">Satış Temsilcisi</span>
-                                </label>
-                                <select
-                                    className="select select-bordered w-full rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400"
-                                    required
-                                    value={newSale.salesPersonId}
-                                    onChange={e => setNewSale({ ...newSale, salesPersonId: e.target.value })}
-                                >
-                                    <option value="">Seçiniz</option>
-                                    {users.map(u => (
-                                        <option key={u.id} value={u.id}>{u.name}</option>
-                                    ))}
-                                </select>
-                            </div>
+                                    <div className="form-control">
+                                        <label className="label">
+                                            <span className="label-text font-bold text-slate-700">Tutar</span>
+                                        </label>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 font-bold">₺</span>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                className="input input-bordered w-full pl-8 rounded-xl border-2 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100 transition-all"
+                                                required
+                                                value={newSale.amount}
+                                                onChange={(e) => setNewSale({ ...newSale, amount: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
 
-                            <div className="form-control w-full mb-4">
-                                <label className="label">
-                                    <span className="label-text font-semibold text-slate-700">Vade Tarihi</span>
-                                </label>
-                                <div className="flex gap-2 mb-2">
-                                    <button type="button" className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-medium transition" onClick={() => setDueDate(15)}>+15 Gün</button>
-                                    <button type="button" className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-medium transition" onClick={() => setDueDate(30)}>+30 Gün</button>
-                                    <button type="button" className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-medium transition" onClick={() => setDueDate(45)}>+45 Gün</button>
-                                    <button type="button" className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-medium transition" onClick={() => setDueDate(60)}>+60 Gün</button>
+                                    <div className="form-control">
+                                        <label className="label">
+                                            <span className="label-text font-bold text-slate-700">Satış Personeli</span>
+                                        </label>
+                                        <select
+                                            className="select select-bordered rounded-xl border-2 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100 transition-all"
+                                            required
+                                            value={newSale.salesPersonId}
+                                            onChange={(e) => setNewSale({ ...newSale, salesPersonId: e.target.value })}
+                                        >
+                                            <option value="">Seçin...</option>
+                                            {users.map(u => (
+                                                <option key={u.id} value={u.id}>{u.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div className="form-control">
+                                        <label className="label">
+                                            <span className="label-text font-bold text-slate-700">Vade Tarihi</span>
+                                        </label>
+                                        <input
+                                            type="date"
+                                            className="input input-bordered rounded-xl border-2 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100 transition-all"
+                                            value={newSale.dueDate}
+                                            onChange={(e) => setNewSale({ ...newSale, dueDate: e.target.value })}
+                                        />
+                                    </div>
                                 </div>
-                                <input
-                                    type="date"
-                                    className="input input-bordered w-full rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400"
-                                    value={newSale.dueDate}
-                                    onChange={e => setNewSale({ ...newSale, dueDate: e.target.value })}
-                                />
-                            </div>
 
-                            <div className="flex justify-end gap-3 mt-6">
-                                <button
-                                    type="button"
-                                    className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 transition"
-                                    onClick={() => setShowModal(false)}
-                                >
-                                    İptal
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-semibold shadow-md hover:opacity-90 transition"
-                                >
-                                    Oluştur
-                                </button>
-                            </div>
-                        </form>
+                                <div className="flex justify-end gap-3 mt-8">
+                                    <button type="button" className="px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 transition-all font-semibold" onClick={() => setShowModal(false)}>
+                                        İptal
+                                    </button>
+                                    <button type="submit" className="px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300">
+                                        Oluştur
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
-                </div>
-            )}
-
-            {/* Payment Modal */}
-            {showPaymentModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-                    <div className="w-full max-w-md mx-4 bg-white rounded-2xl shadow-2xl p-6">
-                        <h3 className="font-bold text-2xl mb-6 text-slate-800">Ödeme Ekle</h3>
-                        <form onSubmit={handleAddPayment}>
-                            <div className="form-control w-full mb-4">
-                                <label className="label">
-                                    <span className="label-text font-semibold text-slate-700">Gelen Tutar (TL)</span>
-                                </label>
-                                <input
-                                    type="number"
-                                    step="0.01"
-                                    className="input input-bordered w-full rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400"
-                                    required
-                                    value={paymentAmount}
-                                    onChange={e => setPaymentAmount(e.target.value)}
-                                />
-                            </div>
-
-                            <div className="flex justify-end gap-3 mt-6">
-                                <button
-                                    type="button"
-                                    className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 transition"
-                                    onClick={() => setShowPaymentModal(false)}
-                                >
-                                    İptal
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold shadow-md hover:opacity-90 transition"
-                                >
-                                    Ödeme Ekle
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
+                )}
+            </main>
         </div>
     );
 }

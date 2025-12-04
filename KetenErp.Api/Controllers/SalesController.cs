@@ -52,6 +52,9 @@ namespace KetenErp.Api.Controllers
             try
             {
                 sale.Date = DateTime.UtcNow;
+                if (sale.DueDate.HasValue)
+                    sale.DueDate = DateTime.SpecifyKind(sale.DueDate.Value, DateTimeKind.Utc);
+                
                 sale.IsCompleted = false;
                 sale.TotalPaidAmount = 0;
 
@@ -62,8 +65,11 @@ namespace KetenErp.Api.Controllers
             }
             catch (Exception ex)
             {
-                // Log the error (you can inject ILogger<SalesController> for proper logging)
-                return StatusCode(500, new { error = "Failed to create sale", details = ex.Message });
+                // Include inner exception for better debugging
+                var details = ex.InnerException != null 
+                    ? $"{ex.Message} | Inner: {ex.InnerException.Message}" 
+                    : ex.Message;
+                return StatusCode(500, new { error = "Failed to create sale", details });
             }
         }
 
@@ -79,8 +85,9 @@ namespace KetenErp.Api.Controllers
             {
                 sale.IsCompleted = true;
                 
-                // Calculate Commission
-                var commissionAmount = sale.Amount * 0.015m; // 1.5%
+                // Calculate Commission (Base on Pre-Tax Amount, assuming 20% VAT)
+                var preTaxAmount = sale.Amount / 1.20m;
+                var commissionAmount = preTaxAmount * 0.015m; // 1.5%
                 var commission = new CommissionRecord
                 {
                     SalesPersonId = sale.SalesPersonId,
@@ -124,6 +131,43 @@ namespace KetenErp.Api.Controllers
             }
 
             return Ok(new { NextNumber = nextNumber });
+        }
+        [HttpGet("commissions")]
+        public async Task<IActionResult> GetCommissionSummary()
+        {
+            var commissions = await _context.CommissionRecords
+                .GroupBy(c => c.SalesPersonId)
+                .Select(g => new
+                {
+                    SalesPersonId = g.Key,
+                    TotalCommission = g.Sum(c => c.Amount),
+                    TotalSalesCount = g.Count(),
+                    LastCommissionDate = g.Max(c => c.Date)
+                })
+                .ToListAsync();
+
+            return Ok(commissions);
+        }
+
+        [HttpGet("commissions/{salesPersonId}")]
+        public async Task<IActionResult> GetCommissionDetails(string salesPersonId)
+        {
+            var commissions = await _context.CommissionRecords
+                .Include(c => c.Sale)
+                .Where(c => c.SalesPersonId == salesPersonId)
+                .OrderByDescending(c => c.Date)
+                .Select(c => new
+                {
+                    c.Id,
+                    c.Date,
+                    c.Amount,
+                    SaleNo = c.Sale != null ? c.Sale.SaleNo : "-",
+                    CustomerName = c.Sale != null ? c.Sale.CustomerName : "-",
+                    SaleAmount = c.Sale != null ? c.Sale.Amount : 0
+                })
+                .ToListAsync();
+
+            return Ok(commissions);
         }
     }
 }

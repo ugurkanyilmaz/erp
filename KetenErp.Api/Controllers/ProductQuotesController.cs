@@ -18,6 +18,7 @@ namespace KetenErp.Api.Controllers
         public string CustomerName { get; set; } = string.Empty;
         public string? CustomerEmail { get; set; }
         public string Currency { get; set; } = "TRY";
+        public string PaymentTerm { get; set; } = "Peşin";
         public string? Notes { get; set; }
         public List<ProductQuoteItemDto> Items { get; set; } = new List<ProductQuoteItemDto>();
     }
@@ -96,6 +97,7 @@ namespace KetenErp.Api.Controllers
                 QuoteNo = quoteNo,
                 CreatedDate = DateTime.UtcNow,
                 Currency = dto.Currency,
+                PaymentTerm = dto.PaymentTerm,
                 Notes = dto.Notes,
                 Status = "Taslak"
             };
@@ -285,7 +287,7 @@ namespace KetenErp.Api.Controllers
                     CustomerName = quote.CustomerName,
                     SaleNo = saleNo,
                     Date = DateTime.UtcNow,
-                    DueDate = DateTime.UtcNow.AddDays(30), // 30 days payment term
+                    DueDate = CalculateDueDate(quote.PaymentTerm),
                     Amount = totalAmount,
                     TotalPaidAmount = 0,
                     SalesPersonId = userId,
@@ -341,11 +343,25 @@ namespace KetenErp.Api.Controllers
                 : "SAT";
 
             var todaySales = await _context.Sales
-                .Where(s => s.Date.Date == DateTime.Today)
+                .Where(s => s.Date.Date == DateTime.UtcNow.Date)
                 .CountAsync();
 
             var nextNumber = todaySales + 1;
             return $"{prefix}-{DateTime.Now:yyyyMMdd}-{nextNumber:000}";
+        }
+        private DateTime CalculateDueDate(string paymentTerm)
+        {
+            if (string.IsNullOrEmpty(paymentTerm) || paymentTerm == "Peşin")
+                return DateTime.UtcNow;
+
+            // Extract number from string like "30 gün"
+            var parts = paymentTerm.Split(' ');
+            if (parts.Length > 0 && int.TryParse(parts[0], out int days))
+            {
+                return DateTime.UtcNow.AddDays(days);
+            }
+
+            return DateTime.UtcNow; // Default to today if parsing fails
         }
     }
 }

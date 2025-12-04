@@ -23,8 +23,9 @@ import SalesDemo from './pages/sales_demo';
 import OrdersPage from './pages/orders';
 import IncomingPaymentsPage from './pages/incoming_payments';
 import SalesPage from './pages/sales';
-import ProductQuotesPage from './pages/product_quotes';
 import CommissionsPage from './pages/commissions';
+import ProductQuotesPage from './pages/product_quotes';
+
 import AdminUsersPage from './pages/admin/AdminUsersPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import './App.css'
@@ -57,10 +58,10 @@ function App() {
           <Route path="/archive/completed-services" element={<ProtectedRoute roles={['admin', 'muhasebe']}><CompletedServices /></ProtectedRoute>} />
           <Route path="/customers" element={<ProtectedRoute roles={['admin', 'muhasebe']}><MusteriYonetimi /></ProtectedRoute>} />
           <Route path="/sales-demo" element={<ProtectedRoute roles={['admin', 'muhasebe', 'satis']}><SalesDemo /></ProtectedRoute>} />
-          <Route path="/orders" element={<ProtectedRoute roles={['admin', 'muhasebe']}><OrdersPage /></ProtectedRoute>} />
+          <Route path="/tedarik" element={<ProtectedRoute roles={['admin', 'muhasebe']}><OrdersPage /></ProtectedRoute>} />
           <Route path="/incoming-payments" element={<ProtectedRoute roles={['admin', 'muhasebe']}><IncomingPaymentsPage /></ProtectedRoute>} />
           <Route path="/sales" element={<ProtectedRoute roles={['admin', 'muhasebe']}><SalesPage /></ProtectedRoute>} />
-          <Route path="/product-quotes" element={<ProtectedRoute roles={['admin', 'muhasebe']}><ProductQuotesPage /></ProtectedRoute>} />
+
           <Route path="/commissions" element={<ProtectedRoute roles={['admin', 'muhasebe']}><CommissionsPage /></ProtectedRoute>} />
           <Route path="/settings/users" element={<ProtectedRoute roles={['admin']}><AdminUsersPage /></ProtectedRoute>} />
         </Routes>

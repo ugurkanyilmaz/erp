@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Plus, Search, Trash2, X, Send, CheckCircle, Package, Sparkles, TrendingUp } from 'lucide-react';
+import { FileText, Plus, Search, Trash2, X, Send, CheckCircle, Package, Sparkles, TrendingUp, Edit } from 'lucide-react';
 import Header from '../components/Header';
 import productQuoteApi from '../hooks/productQuoteApi';
 import stockApi from '../hooks/stockApi';
@@ -9,6 +9,7 @@ export default function ProductQuotesPage() {
     const [quotes, setQuotes] = useState([]);
     const [products, setProducts] = useState([]);
     const [customers, setCustomers] = useState([]);
+    const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedQuote, setSelectedQuote] = useState(null);
     const [showNewQuoteForm, setShowNewQuoteForm] = useState(false);
@@ -20,6 +21,8 @@ export default function ProductQuotesPage() {
         customerName: '',
         customerEmail: '',
         currency: 'TRY',
+        paymentTerm: 'Peşin',
+        salesPersonId: '',
         notes: '',
         items: [{ productId: null, productName: '', quantity: 1, unitPrice: 0, discountPercent: 0, searchTerm: '' }]
     });
@@ -36,6 +39,7 @@ export default function ProductQuotesPage() {
         fetchQuotes();
         fetchProducts();
         fetchCustomers();
+        fetchUsers();
     }, []);
 
     const fetchQuotes = async () => {
@@ -65,6 +69,18 @@ export default function ProductQuotesPage() {
         } catch (error) {
             console.error('Error fetching customers:', error);
         }
+    };
+
+    const fetchUsers = async () => {
+        // Mock users for now, similar to sales.jsx
+        const salesUsers = [
+            { id: 'satis1', name: 'Satış 1' },
+            { id: 'satis2', name: 'Satış 2' },
+            { id: 'satis3', name: 'Satış 3' },
+            { id: 'satis4', name: 'Satış 4' },
+            { id: 'ugur', name: 'Uğur Yılmaz' }
+        ];
+        setUsers(salesUsers);
     };
 
     const handleCustomerChange = (value) => {
@@ -136,6 +152,8 @@ export default function ProductQuotesPage() {
                 customerName: newQuote.customerName,
                 customerEmail: newQuote.customerEmail,
                 currency: newQuote.currency,
+                paymentTerm: newQuote.paymentTerm,
+                salesPersonId: newQuote.salesPersonId,
                 notes: newQuote.notes,
                 items: newQuote.items.map(item => ({
                     productId: item.productId,
@@ -153,6 +171,8 @@ export default function ProductQuotesPage() {
                 customerName: '',
                 customerEmail: '',
                 currency: 'TRY',
+                paymentTerm: 'Peşin',
+                salesPersonId: '',
                 notes: '',
                 items: [{ productId: null, productName: '', quantity: 1, unitPrice: 0, discountPercent: 0, searchTerm: '' }]
             });
@@ -164,6 +184,26 @@ export default function ProductQuotesPage() {
             console.error('Error creating quote:', error);
             alert('Teklif oluşturulamadı');
         }
+    };
+
+    const handleEditQuote = (quote) => {
+        setNewQuote({
+            customerName: quote.customerName,
+            customerEmail: quote.customerEmail || '',
+            currency: quote.currency,
+            paymentTerm: quote.paymentTerm || 'Peşin',
+            salesPersonId: quote.salesPersonId || '',
+            notes: quote.notes || '',
+            items: quote.items.map(item => ({
+                productId: item.productId,
+                productName: item.productName,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                discountPercent: item.discountPercent,
+                searchTerm: item.productName
+            }))
+        });
+        setShowNewQuoteForm(true);
     };
 
     const handleSendQuote = (quote) => {
@@ -428,6 +468,43 @@ export default function ProductQuotesPage() {
                                         </select>
                                     </div>
 
+                                    {/* Payment Term */}
+                                    <div className="form-control mb-6">
+                                        <label className="label">
+                                            <span className="label-text font-bold text-slate-700">Vade</span>
+                                        </label>
+                                        <select
+                                            className="select select-bordered rounded-xl border-2 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 transition-all"
+                                            value={newQuote.paymentTerm}
+                                            onChange={(e) => setNewQuote({ ...newQuote, paymentTerm: e.target.value })}
+                                        >
+                                            <option value="Peşin">Peşin</option>
+                                            <option value="15 gün">15 gün</option>
+                                            <option value="30 gün">30 gün</option>
+                                            <option value="45 gün">45 gün</option>
+                                            <option value="60 gün">60 gün</option>
+                                            <option value="90 gün">90 gün</option>
+                                        </select>
+                                    </div>
+
+                                    {/* Sales Person */}
+                                    <div className="form-control mb-6">
+                                        <label className="label">
+                                            <span className="label-text font-bold text-slate-700">Satış Personeli</span>
+                                        </label>
+                                        <select
+                                            className="select select-bordered rounded-xl border-2 focus:border-blue-400 focus:ring-4 focus:ring-blue-100 transition-all"
+                                            value={newQuote.salesPersonId}
+                                            onChange={(e) => setNewQuote({ ...newQuote, salesPersonId: e.target.value })}
+                                            required
+                                        >
+                                            <option value="">Seçin...</option>
+                                            {users.map(u => (
+                                                <option key={u.id} value={u.id}>{u.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
                                     {/* Products */}
                                     <div className="mb-6">
                                         <label className="label">
@@ -660,6 +737,14 @@ export default function ProductQuotesPage() {
                                             className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 flex items-center gap-2"
                                         >
                                             <Send size={20} /> Gönder
+                                        </button>
+                                    )}
+                                    {(selectedQuote.status === 'Taslak' || selectedQuote.status === 'Gönderildi') && (
+                                        <button
+                                            onClick={() => handleEditQuote(selectedQuote)}
+                                            className="px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 flex items-center gap-2"
+                                        >
+                                            <Edit size={20} /> Düzenle
                                         </button>
                                     )}
                                     {selectedQuote.status === 'Gönderildi' && (

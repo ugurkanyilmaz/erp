@@ -23,6 +23,11 @@ namespace KetenErp.Api.Controllers
         public int Quantity { get; set; }
     }
 
+    public class UpdateStatusDto
+    {
+        public string Status { get; set; } = string.Empty;
+    }
+
     [Route("api/[controller]")]
     [ApiController]
     [Authorize]
@@ -83,13 +88,13 @@ namespace KetenErp.Api.Controllers
         }
 
         [HttpPut("{id}/status")]
-        public async Task<IActionResult> UpdateStatus(int id, [FromBody] string status)
+        public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateStatusDto dto)
         {
             var order = await _context.Orders.FindAsync(id);
             if (order == null) return NotFound();
 
-            order.Status = status;
-            if (status == "Geldi")
+            order.Status = dto.Status;
+            if (dto.Status == "Ulaştı")
             {
                 order.IsArchived = true;
             }

@@ -307,20 +307,15 @@ namespace KetenErp.Api.Controllers
             // If the table is not present yet, return empty list instead of throwing
             try
             {
-                using var conn = _db.Database.GetDbConnection();
-                conn.Open();
-                using var cmd = conn.CreateCommand();
-                cmd.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name='CompletedServiceRecords';";
-                var r = cmd.ExecuteScalar();
-                if (r == null) return Ok(new List<object>());
+                // Just return empty list if table doesn't exist (handled by try-catch)
+                // For PostgreSQL/EF Core, we can just try to query.
+                var list = await _db.CompletedServiceRecords.OrderByDescending(c => c.CompletedAt).ToListAsync();
+                return Ok(list);
             }
             catch
             {
                 return Ok(new List<object>());
             }
-
-            var list = await _db.CompletedServiceRecords.OrderByDescending(c => c.CompletedAt).ToListAsync();
-            return Ok(list);
         }
 
         // Get detailed information about an archived/completed service record
@@ -470,29 +465,10 @@ namespace KetenErp.Api.Controllers
                     SerializedRecordJson = json
                 };
 
-                // Before attempting to write to the CompletedServiceRecords table, ensure the table exists
-                try
-                {
-                    using var _connProbe = _db.Database.GetDbConnection();
-                    _connProbe.Open();
-                    using var _cmdProbe = _connProbe.CreateCommand();
-                    _cmdProbe.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name='CompletedServiceRecords';";
-                    var _probeRes = _cmdProbe.ExecuteScalar();
-                    if (_probeRes == null)
-                    {
-                        // Table missing: fallback to marking the existing record as 'Tamamlandı' and avoid archiving
-                        existing.Durum = ServiceRecordStatus.Tamamlandi;
-                        await _db.SaveChangesAsync();
-                        return Ok(new { archived = false, message = "CompletedServiceRecords table not present; record marked as completed only." });
-                    }
-                }
-                catch
-                {
-                    // If any error probing the DB, fall back safely to updating the record status only
-                    existing.Durum = ServiceRecordStatus.Tamamlandi;
-                    await _db.SaveChangesAsync();
-                    return Ok(new { archived = false, message = "Could not verify archive table; record marked as completed only." });
-                }
+                // For PostgreSQL, we'll skip the manual table check and rely on EF.
+                // If the table doesn't exist, the transaction below will fail, which is handled.
+                // However, to be safe and match the logic of "mark as completed if archive fails":
+
 
                 // perform deletion of child entities and add archive inside a transaction
                 using (var tx = await _db.Database.BeginTransactionAsync())

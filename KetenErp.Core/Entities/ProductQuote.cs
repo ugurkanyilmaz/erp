@@ -18,6 +18,7 @@ namespace KetenErp.Core.Entities
         public int? SentQuoteId { get; set; } // Arşive kaydedildiğinde
         public string? Notes { get; set; }
         public string Currency { get; set; } = "TRY"; // USD, EUR, TRY
+        public string PaymentTerm { get; set; } = "Peşin"; // Peşin, 15 gün, 30 gün, 45 gün, 60 gün, 90 gün
         
         // Navigation properties
         public Sale? Sale { get; set; }

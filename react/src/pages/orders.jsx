@@ -121,10 +121,10 @@ export default function OrdersPage() {
             setShowNewOrderForm(false);
 
             fetchOrders();
-            alert('Sipariş başarıyla oluşturuldu!');
+            alert('Tedarik siparişi başarıyla oluşturuldu!');
         } catch (error) {
             console.error('Error creating order:', error);
-            alert('Sipariş oluşturulamadı');
+            alert('Tedarik siparişi oluşturulamadı');
         }
     };
 
@@ -171,7 +171,7 @@ export default function OrdersPage() {
     };
 
     const filteredOrders = orders.filter(o =>
-        (o.customerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (o.supplier || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (o.orderNo || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
@@ -270,12 +270,12 @@ export default function OrdersPage() {
                                         <div className="flex items-start justify-between">
                                             <div className="flex-1">
                                                 <div className="font-bold text-slate-800 text-lg">{order.orderNo}</div>
-                                                <div className="text-sm text-slate-600 mt-1">{order.customerName}</div>
+                                                <div className="text-sm text-slate-600 mt-1">{order.supplier}</div>
                                                 <div className="text-xs text-slate-500 mt-2">
                                                     {new Date(order.orderDate).toLocaleDateString('tr-TR')}
                                                 </div>
                                                 <div className="text-xs text-slate-600 font-semibold mt-2">
-                                                    {order.items?.length || 0} ürün
+                                                    {order.orderItems?.length || 0} ürün
                                                 </div>
                                             </div>
                                             <div className={`px-3 py-1 rounded-lg text-xs font-semibold border-2 flex items-center gap-1 ${getStatusBadge(order.status)}`}>
@@ -308,10 +308,10 @@ export default function OrdersPage() {
                                 </div>
 
                                 <form onSubmit={handleCreateOrder}>
-                                    {/* Customer */}
+                                    {/* Supplier */}
                                     <div className="form-control mb-6">
                                         <label className="label">
-                                            <span className="label-text font-bold text-slate-700">Müşteri</span>
+                                            <span className="label-text font-bold text-slate-700">Tedarikçi</span>
                                         </label>
                                         <input
                                             list="customers"
@@ -424,7 +424,7 @@ export default function OrdersPage() {
                                 <div className="flex justify-between items-start mb-8">
                                     <div>
                                         <h2 className="text-3xl font-bold text-slate-800">{selectedOrder.orderNo}</h2>
-                                        <p className="text-lg text-slate-600 mt-2">{selectedOrder.customerName}</p>
+                                        <p className="text-lg text-slate-600 mt-2">{selectedOrder.supplier}</p>
                                         <p className="text-sm text-slate-500 mt-1">
                                             {new Date(selectedOrder.orderDate).toLocaleDateString('tr-TR')}
                                         </p>
@@ -439,7 +439,7 @@ export default function OrdersPage() {
                                 <div className="mb-8">
                                     <h3 className="font-bold text-xl mb-4 text-slate-700">Ürünler</h3>
                                     <div className="space-y-3">
-                                        {selectedOrder.items?.map((item, idx) => (
+                                        {(selectedOrder.orderItems || selectedOrder.items || []).map((item, idx) => (
                                             <div key={idx} className="bg-gradient-to-r from-slate-50 to-purple-50 border-2 border-slate-200 rounded-xl p-4">
                                                 <div className="flex justify-between items-center">
                                                     <div className="flex-1">

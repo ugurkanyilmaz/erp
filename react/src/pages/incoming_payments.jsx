@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Wallet, Plus, Search, ArrowDownLeft, Calendar, Package, AlertCircle } from 'lucide-react';
+import { Wallet, Plus, Search, ArrowDownLeft, Calendar, Package, AlertCircle, CreditCard } from 'lucide-react';
 import Header from '../components/Header';
 import accountingApi from '../hooks/accountingApi';
 import productQuoteApi from '../hooks/productQuoteApi';
@@ -79,6 +79,17 @@ export default function IncomingPaymentsPage() {
         }
     };
 
+    const openPaymentModalForSale = (sale, customerName) => {
+        const remaining = sale.amount - sale.totalPaidAmount;
+        setNewPayment({
+            targetAccount: '',
+            sender: customerName,
+            saleId: sale.id,
+            amount: remaining
+        });
+        setShowModal(true);
+    };
+
     const handleCreatePayment = async (e) => {
         e.preventDefault();
         try {
@@ -89,6 +100,9 @@ export default function IncomingPaymentsPage() {
             setShowModal(false);
             setNewPayment({ targetAccount: '', sender: '', amount: '', saleId: null });
             fetchPayments();
+            // Refresh expected payments as well since a sale might have been paid
+            fetchExpectedPayments();
+            fetchCustomersAndSales();
         } catch (error) {
             console.error('Error creating payment:', error);
         }
@@ -237,6 +251,7 @@ export default function IncomingPaymentsPage() {
                                         <th className="text-right">Toplam Tutar</th>
                                         <th className="text-right">Kalan Tutar</th>
                                         <th>Durum</th>
+                                        <th>İşlemler</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -268,12 +283,21 @@ export default function IncomingPaymentsPage() {
                                                 <td>
                                                     <div className="badge badge-warning badge-sm">Ödeme Bekliyor</div>
                                                 </td>
+                                                <td>
+                                                    <button
+                                                        onClick={() => openPaymentModalForSale(item.sale, item.customerName)}
+                                                        className="btn btn-ghost btn-xs gap-1 text-emerald-600 hover:bg-emerald-50"
+                                                    >
+                                                        <CreditCard size={14} />
+                                                        Ödeme Ekle
+                                                    </button>
+                                                </td>
                                             </tr>
                                         );
                                     })}
                                     {filteredExpected.length === 0 && (
                                         <tr>
-                                            <td colSpan="7" className="text-center py-8 text-slate-500">
+                                            <td colSpan="8" className="text-center py-8 text-slate-500">
                                                 {searchTerm ? 'Arama kriterlerine uygun beklenen ödeme bulunamadı.' : 'Beklenen ödeme bulunamadı.'}
                                             </td>
                                         </tr>

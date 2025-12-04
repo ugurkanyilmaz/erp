@@ -52,9 +52,15 @@ export async function getNextSaleNumber(customerName) {
     return res.data;
 }
 
+
 // Commissions
-export async function getCommissions(month, year) {
-    const res = await api.get(`/api/commissions?month=${month}&year=${year}`);
+export async function getCommissions() {
+    const res = await api.get('/api/sales/commissions');
+    return res.data;
+}
+
+export async function getCommissionDetails(salesPersonId) {
+    const res = await api.get(`/api/sales/commissions/${encodeURIComponent(salesPersonId)}`);
     return res.data;
 }
 
@@ -74,6 +80,8 @@ export default {
     createSale,
     addSalePayment,
     getNextSaleNumber,
+
     getCommissions,
+    getCommissionDetails,
     getCustomers
 };

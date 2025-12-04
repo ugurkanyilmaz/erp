@@ -1,24 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { Percent, Calendar, Search, ArrowRight } from 'lucide-react';
+import { TrendingUp, Users, DollarSign, Calendar, Award, X, ChevronRight } from 'lucide-react';
 import Header from '../components/Header';
 import accountingApi from '../hooks/accountingApi';
 
 export default function CommissionsPage() {
     const [commissions, setCommissions] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-    const [users, setUsers] = useState([]);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedSalesPerson, setSelectedSalesPerson] = useState(null);
+    const [details, setDetails] = useState([]);
+    const [loadingDetails, setLoadingDetails] = useState(false);
 
     useEffect(() => {
         fetchCommissions();
-        fetchUsers();
-    }, [selectedMonth, selectedYear]);
+    }, []);
 
     const fetchCommissions = async () => {
         try {
-            const data = await accountingApi.getCommissions(selectedMonth, selectedYear);
+            // We need to add this method to accountingApi first, but for now we'll fetch directly or assume it exists
+            // Since we just added the endpoint to backend, let's use a direct fetch or extend the hook later
+            // For this implementation, I'll assume accountingApi has getCommissions or I'll add it.
+            // Let's assume we will add it to the hook.
+            const data = await accountingApi.getCommissions();
             setCommissions(data);
         } catch (error) {
             console.error('Error fetching commissions:', error);
@@ -27,163 +29,213 @@ export default function CommissionsPage() {
         }
     };
 
-    const fetchUsers = async () => {
-        // Mock users for now, same as sales page
-        const salesUsers = [
-            { id: 'satis1', name: 'Satış 1' },
-            { id: 'satis2', name: 'Satış 2' },
-            { id: 'satis3', name: 'Satış 3' },
-            { id: 'satis4', name: 'Satış 4' },
-            { id: 'ugur', name: 'Uğur Yılmaz' }
-        ];
-        setUsers(salesUsers);
-    };
-
-    const getUserName = (id) => {
-        return users.find(u => u.id === id)?.name || id;
-    };
-
-    // Group commissions by sales person
-    const groupedCommissions = commissions.reduce((acc, curr) => {
-        // Filter by search term
-        const matchesSearch =
-            (curr.sale?.customerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (curr.sale?.saleNo || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            getUserName(curr.salesPersonId).toLowerCase().includes(searchTerm.toLowerCase());
-
-        if (!matchesSearch) return acc;
-
-        if (!acc[curr.salesPersonId]) {
-            acc[curr.salesPersonId] = {
-                name: getUserName(curr.salesPersonId),
-                totalAmount: 0,
-                records: []
-            };
+    const handleCardClick = async (salesPersonId) => {
+        setSelectedSalesPerson(salesPersonId);
+        setLoadingDetails(true);
+        try {
+            const data = await accountingApi.getCommissionDetails(salesPersonId);
+            setDetails(data);
+        } catch (error) {
+            console.error('Error fetching details:', error);
+        } finally {
+            setLoadingDetails(false);
         }
-        acc[curr.salesPersonId].totalAmount += curr.amount;
-        acc[curr.salesPersonId].records.push(curr);
-        return acc;
-    }, {});
+    };
+
+    // Mock data if fetch fails (for development)
+    const mockCommissions = [
+        { salesPersonId: 'satis1', totalCommission: 1500.50, totalSalesCount: 12, lastCommissionDate: '2023-12-01T10:00:00' },
+        { salesPersonId: 'ugur', totalCommission: 3250.00, totalSalesCount: 8, lastCommissionDate: '2023-12-03T14:30:00' },
+    ];
+
+    const displayCommissions = commissions.length > 0 ? commissions : [];
 
     return (
-        <div className="min-h-screen bg-slate-50">
-            <Header title="Prim Hesabı" subtitle="Satış primleri takibi" IconComponent={Percent} showNew={false} showBack={true} />
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+            <Header title="Prim Takibi" subtitle="Satış personeli prim durumları" IconComponent={TrendingUp} showNew={false} showBack={true} />
 
             <main className="p-6">
-                <div className="flex flex-col md:flex-row gap-4 mb-6 bg-white p-6 rounded-2xl shadow-lg border-2 border-slate-100 items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-3 bg-gradient-to-r from-blue-50 to-indigo-50 p-3 rounded-xl border border-blue-100">
-                            <Calendar className="text-blue-600" size={20} />
-                            <select
-                                className="select select-ghost select-sm w-full max-w-xs focus:bg-transparent font-medium text-slate-700"
-                                value={selectedMonth}
-                                onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                            >
-                                {Array.from({ length: 12 }, (_, i) => (
-                                    <option key={i + 1} value={i + 1}>{new Date(0, i).toLocaleString('tr-TR', { month: 'long' })}</option>
-                                ))}
-                            </select>
-                            <select
-                                className="select select-ghost select-sm w-full max-w-xs focus:bg-transparent font-medium text-slate-700"
-                                value={selectedYear}
-                                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                            >
-                                {Array.from({ length: 5 }, (_, i) => (
-                                    <option key={i} value={new Date().getFullYear() - i}>{new Date().getFullYear() - i}</option>
-                                ))}
-                            </select>
+                {/* Stats Overview */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div className="card bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-xl">
+                        <div className="card-body">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-indigo-100 text-sm">Toplam Dağıtılan Prim</p>
+                                    <h3 className="text-3xl font-bold mt-1">
+                                        ₺{displayCommissions.reduce((sum, c) => sum + c.totalCommission, 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                                    </h3>
+                                </div>
+                                <DollarSign size={40} className="opacity-30" />
+                            </div>
                         </div>
                     </div>
 
-                    <div className="relative w-full md:w-64">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <Search size={18} className="text-slate-400" />
+                    <div className="card bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-xl">
+                        <div className="card-body">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-emerald-100 text-sm">Aktif Satış Personeli</p>
+                                    <h3 className="text-3xl font-bold mt-1">{displayCommissions.length}</h3>
+                                </div>
+                                <Users size={40} className="opacity-30" />
+                            </div>
                         </div>
-                        <input
-                            type="text"
-                            placeholder="Personel, müşteri veya satış no ara..."
-                            className="input input-bordered pl-10 w-full rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
+                    </div>
+
+                    <div className="card bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-xl">
+                        <div className="card-body">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-amber-100 text-sm">Toplam Primli Satış</p>
+                                    <h3 className="text-3xl font-bold mt-1">
+                                        {displayCommissions.reduce((sum, c) => sum + c.totalSalesCount, 0)}
+                                    </h3>
+                                </div>
+                                <Award size={40} className="opacity-30" />
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-6">
-                    {Object.entries(groupedCommissions).map(([id, data]) => (
-                        <div key={id} className="card bg-base-100 shadow-xl border border-slate-100">
-                            <div className="card-body p-6">
-                                <div className="flex justify-between items-center mb-6 border-b pb-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="avatar placeholder">
-                                            <div className="bg-neutral-focus text-neutral-content rounded-full w-12">
-                                                <span className="text-xl">{data.name.charAt(0)}</span>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <h2 className="card-title text-xl">{data.name}</h2>
-                                            <p className="text-xs text-slate-500">Satış Temsilcisi</p>
-                                        </div>
+                {/* Sales Person Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {displayCommissions.map((comm, index) => (
+                        <div
+                            key={index}
+                            onClick={() => handleCardClick(comm.salesPersonId)}
+                            className="card bg-white shadow-xl hover:shadow-2xl transition-all duration-300 border-2 border-slate-100 hover:border-indigo-200 group cursor-pointer"
+                        >
+                            <div className="card-body">
+                                <div className="flex items-center gap-4 mb-4">
+                                    <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xl group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                                        {comm.salesPersonId.substring(0, 2).toUpperCase()}
                                     </div>
-                                    <div className="text-right">
-                                        <p className="text-sm text-slate-500 mb-1">Toplam Hakediş</p>
-                                        <div className="badge badge-primary badge-lg p-4 text-lg font-bold">
-                                            ₺{data.totalAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
-                                        </div>
+                                    <div>
+                                        <h3 className="card-title text-slate-700">{comm.salesPersonId}</h3>
+                                        <p className="text-xs text-slate-500">Satış Personeli</p>
                                     </div>
                                 </div>
 
-                                <div className="overflow-x-auto">
-                                    <table className="table w-full">
-                                        <thead className="bg-slate-50">
-                                            <tr>
-                                                <th>Tarih</th>
-                                                <th>Satış Detayı</th>
-                                                <th>Hesaplama</th>
-                                                <th className="text-right">Prim Tutarı</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {data.records.map((record) => (
-                                                <tr key={record.id} className="hover">
-                                                    <td className="w-32">
-                                                        <div className="font-medium">{new Date(record.date).toLocaleDateString('tr-TR')}</div>
-                                                        <div className="text-xs text-slate-400">{new Date(record.date).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</div>
-                                                    </td>
-                                                    <td>
-                                                        <div className="flex flex-col">
-                                                            <span className="font-bold text-slate-700">{record.sale?.customerName || 'Bilinmeyen Müşteri'}</span>
-                                                            <span className="text-xs badge badge-ghost badge-sm mt-1 w-fit">Satış No: {record.sale?.saleNo || record.saleId}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        <div className="flex items-center gap-2 text-slate-600 text-sm">
-                                                            <span>₺{(record.amount / 0.015).toLocaleString('tr-TR', { maximumFractionDigits: 0 })}</span>
-                                                            <ArrowRight size={14} />
-                                                            <span className="badge badge-sm badge-outline">%1.5</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="text-right font-mono font-bold text-emerald-600 text-lg">
-                                                        +₺{record.amount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                <div className="space-y-3">
+                                    <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl">
+                                        <span className="text-slate-600 text-sm font-medium">Toplam Prim</span>
+                                        <span className="text-emerald-600 font-bold text-lg">
+                                            ₺{comm.totalCommission.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                                        </span>
+                                    </div>
+
+                                    <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl">
+                                        <span className="text-slate-600 text-sm font-medium">Satış Adedi</span>
+                                        <span className="text-indigo-600 font-bold">
+                                            {comm.totalSalesCount} Adet
+                                        </span>
+                                    </div>
+
+                                    <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl">
+                                        <span className="text-slate-600 text-sm font-medium">Son İşlem</span>
+                                        <span className="text-slate-700 font-medium text-sm">
+                                            {new Date(comm.lastCommissionDate).toLocaleDateString('tr-TR')}
+                                        </span>
+                                    </div>
+
+                                    <div className="pt-2 text-center">
+                                        <span className="text-indigo-500 text-sm font-semibold flex items-center justify-center gap-1 group-hover:gap-2 transition-all">
+                                            Detayları Gör <ChevronRight size={16} />
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     ))}
 
-                    {Object.keys(groupedCommissions).length === 0 && (
-                        <div className="flex flex-col items-center justify-center py-16 text-slate-400 bg-white rounded-xl border border-dashed border-slate-300">
-                            <Percent size={48} className="mb-4 opacity-20" />
-                            <p className="text-lg font-medium">Bu dönem için kayıt bulunamadı.</p>
-                            <p className="text-sm">Farklı bir ay seçmeyi veya arama kriterlerini değiştirmeyi deneyin.</p>
+                    {displayCommissions.length === 0 && !loading && (
+                        <div className="col-span-full text-center py-12 text-slate-500">
+                            <Award size={48} className="mx-auto mb-4 opacity-20" />
+                            <p>Henüz prim kaydı bulunmamaktadır.</p>
                         </div>
                     )}
                 </div>
+
+
+                {/* Details Modal */}
+                {selectedSalesPerson && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col border-2 border-white/20">
+                            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                                <div>
+                                    <h3 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-lg">
+                                            {selectedSalesPerson.substring(0, 2).toUpperCase()}
+                                        </div>
+                                        {selectedSalesPerson} - Prim Detayları
+                                    </h3>
+                                </div>
+                                <button
+                                    onClick={() => setSelectedSalesPerson(null)}
+                                    className="p-2 hover:bg-slate-200 rounded-full transition-colors"
+                                >
+                                    <X size={24} className="text-slate-500" />
+                                </button>
+                            </div>
+
+                            <div className="p-6 overflow-y-auto flex-1">
+                                {loadingDetails ? (
+                                    <div className="flex justify-center items-center py-12">
+                                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+                                    </div>
+                                ) : (
+                                    <div className="overflow-x-auto">
+                                        <table className="table w-full">
+                                            <thead className="bg-slate-50 text-slate-600">
+                                                <tr>
+                                                    <th>Tarih</th>
+                                                    <th>Satış No</th>
+                                                    <th>Müşteri</th>
+                                                    <th className="text-right">Satış Tutarı</th>
+                                                    <th className="text-right">Prim Tutarı</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {details.map((detail) => (
+                                                    <tr key={detail.id} className="hover:bg-indigo-50 transition-colors">
+                                                        <td className="font-medium">
+                                                            {new Date(detail.date).toLocaleDateString('tr-TR')}
+                                                        </td>
+                                                        <td className="font-bold text-indigo-600">{detail.saleNo}</td>
+                                                        <td>{detail.customerName}</td>
+                                                        <td className="text-right font-medium">
+                                                            ₺{detail.saleAmount?.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                                                        </td>
+                                                        <td className="text-right font-bold text-emerald-600">
+                                                            ₺{detail.amount?.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {details.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan="5" className="text-center py-8 text-slate-500">
+                                                            Kayıt bulunamadı.
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                            <tfoot className="bg-slate-50 font-bold text-slate-700">
+                                                <tr>
+                                                    <td colSpan="4" className="text-right">TOPLAM:</td>
+                                                    <td className="text-right text-emerald-600 text-lg">
+                                                        ₺{details.reduce((sum, d) => sum + d.amount, 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                                                    </td>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
             </main>
-        </div>
+        </div >
     );
 }

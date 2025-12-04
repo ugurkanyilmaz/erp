@@ -8,7 +8,7 @@ namespace KetenErp.Core.Entities
         public int Id { get; set; }
         public string Supplier { get; set; } = string.Empty;
         public DateTime OrderDate { get; set; }
-        public string Status { get; set; } = "Sipariş Verildi"; // Sipariş Verildi, Yolda, Gümrükte, Geldi
+        public string Status { get; set; } = "Sipariş Verildi"; // Sipariş Verildi, Hazırlanıyor, Yolda, Gümrükte, Ulaştı
         public bool IsArchived { get; set; }
         
         // Navigation property

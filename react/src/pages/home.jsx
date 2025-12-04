@@ -10,7 +10,7 @@ export default function ERPDashboard() {
     { id: 3, title: 'Satışlar', icon: ShoppingCart, color: 'bg-emerald-500', count: '156' },
     { id: 4, title: 'Müşteri Yönetimi', icon: Users, color: 'bg-orange-500', count: '342' },
     { id: 5, title: 'Satış Demo', icon: ShoppingCart, color: 'bg-pink-500', count: '89' },
-    { id: 6, title: 'Siparişler', icon: Truck, color: 'bg-indigo-500', count: '24' },
+    { id: 6, title: 'Tedarik', icon: Truck, color: 'bg-indigo-500', count: '24' },
     { id: 9, title: 'Gelen Ödemeler', icon: Wallet, color: 'bg-teal-500', count: '-' },
     { id: 10, title: 'Prim Hesabı', icon: Percent, color: 'bg-rose-500', count: '-' },
     { id: 7, title: 'Arşiv', icon: Archive, color: 'bg-cyan-500', count: '-' },
@@ -109,9 +109,10 @@ export default function ERPDashboard() {
               )
             }
 
-            if (module.title === 'Siparişler') {
+            // Make the Tedarik card link to the Tedarik page
+            if (module.title === 'Tedarik') {
               return (
-                <Link key={module.id} to="/orders" className="block">
+                <Link key={module.id} to="/tedarik" className="block">
                   {card}
                 </Link>
               )
